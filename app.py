@@ -19,11 +19,27 @@ if ticker_input:
             if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
                 st.error("⚠️ Emiten tidak ditemukan atau data ditarik dalam keadaan kosong.")
             else:
-                # 1. Ekstraksi Data Kasar (Raw Data) dengan proteksi tipe data
+                # 1. Ekstraksi Data Kasar dengan Normalisasi FCF 3 Tahun
                 current_price = float(info.get('currentPrice', info.get('previousClose', 0)) or 0)
                 shares_raw = float(info.get('sharesOutstanding', 0) or 0)
-                fcf_raw = float(info.get('freeCashflow', 0) or 0)
                 eps_raw = float(info.get('trailingEps', 0) or 0)
+
+                # Logika Penarikan FCF Otomatis Rata-Rata 3 Tahun
+                fcf_raw = 0.0
+                cf = stock.cash_flow
+                if cf is not None and not cf.empty:
+                    # Mengecek apakah baris Free Cash Flow tersedia
+                    if 'Free Cash Flow' in cf.index:
+                        # Menarik 3 tahun terakhir dan menghapus data yang kosong
+                        fcf_history = cf.loc['Free Cash Flow'].dropna().head(3)
+                        if len(fcf_history) > 0:
+                            # Menghitung rata-rata matematisnya
+                            fcf_raw = float(fcf_history.mean())
+                
+                # Jika Laporan Arus Kas 3 Tahun gagal ditarik, mundur ke FCF 1 Tahun (TTM)
+                if fcf_raw == 0.0:
+                    fcf_raw = float(info.get('freeCashflow', 0) or 0)
+
 
                 bs = stock.balance_sheet
                 equity_raw = 0.0
