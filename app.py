@@ -3,9 +3,6 @@ import yfinance as yf
 import pandas as pd
 import ta
 
-# ==========================================
-# KONFIGURASI HALAMAN & FILTERS
-# ==========================================
 st.set_page_config(page_title="Mesin Audit Multi-Sektor", layout="centered", page_icon="📈")
 
 FILTERS_RIIL = {
@@ -25,16 +22,13 @@ FILTERS_RIIL = {
 FILTERS_KEUANGAN = {
     'min_market_cap_usd': 500000000,
     'min_avg_volume': 100000,
-    'roe_min': 15.0,            # Standard bank jangkar/kualitas tinggi
-    'roa_min': 1.5,             # Standard efisiensi aset bank
+    'roe_min': 15.0,
+    'roa_min': 1.5,
     'min_years_listed': 5,
     'rsi_min': 30,
     'rsi_max': 70
 }
 
-# ==========================================
-# NAVIGASI UTAMA (SIDEBAR)
-# ==========================================
 st.sidebar.title("🛡️ Panel Kendali Multi-Sektor")
 sektor_pilihan = st.sidebar.radio(
     "Pilih Sektor Emiten:",
@@ -43,9 +37,6 @@ sektor_pilihan = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.info("Sistem akan menyesuaikan seluruh formula matematika dan pilar evaluasi berdasarkan sektor yang dipilih.")
 
-# ==========================================
-# MODUL 1: SEKTOR RIIL
-# ==========================================
 if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
     st.title("🏭 Sektor Riil: Auditing EPV & ARV")
     st.write("Menggunakan kapasitas Arus Kas Bebas (FCF) tanpa pertumbuhan dan biaya reproduksi aset.")
@@ -135,7 +126,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         if franchise_value > 0: st.success("🔥 TERDETEKSI MOAT: Memiliki nilai waralaba.")
                         else: st.error("⚠️ VALUE TRAP: Bersifat padat modal.")
 
-                        # SCREENER 6 PILAR RIIL
                         st.markdown("---")
                         st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Riil)")
                         passed, failed = [], []
@@ -161,7 +151,7 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         else: failed.append(f"P10 (Valuasi FCF Yield): {fcf_yield:.1f}%")
 
                         df = yf.download(ticker_input, period=f"{FILTERS_RIIL['min_years_listed']}y", interval="1d", progress=False)
-                        if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
+                        if not df.empty and len(df) >= (200 * FILTERS_RIIL['min_years_listed']):
                             passed.append(f"P1 (Lindy Effect: Lulus {FILTERS_RIIL['min_years_listed']} Tahun)")
                         else: failed.append("P1 (Lindy Effect): Gagal")
 
@@ -183,9 +173,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             for f in failed: st.markdown(f"- {f}")
             except Exception as e: st.error(f"❌ Sistem Eror Sektor Riil: {e}")
 
-# ==========================================
-# MODUL 2: SEKTOR KEUANGAN (BANK & ASURANSI)
-# ==========================================
 elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
     st.title("🏦 Sektor Keuangan: Auditing Justified PBV Model")
     st.write("Menggunakan korelasi antara Return on Equity (ROE), Suku Bunga Diskonto, dan Nilai Buku Per Lembar Saham (BVPS).")
@@ -207,7 +194,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                     roa_raw = float(info.get('returnOnAssets', 0) * 100 or 0)
                     shares_raw = float(info.get('sharesOutstanding', 0) or 0)
 
-                    # Tampilan info awal pendeteksian mesin
                     st.markdown("---")
                     st.info(f"ℹ️ **Data Terdeteksi:** ROE: {roe_raw:.2f}% | BVPS (Nilai Buku/Lembar): {bvps_raw:,.2f}")
 
@@ -225,8 +211,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                         submit_bank_btn = st.form_submit_button("Jalankan Audit Keuangan")
 
                     if submit_bank_btn:
-                        # RUMUS UTAMA: GORDON GROWTH JUSTIFIED PBV
-                        # Justified PBV = (ROE - g) / (Ke - g)
                         if ke_input <= g_input:
                             st.error("❌ Eror Matematika: Nilai Cost of Equity (Ke) harus lebih besar daripada tingkat pertumbuhan (g).")
                         else:
@@ -239,7 +223,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             zona_beli_bank = harga_wajar_bank * 0.80
                             market_pbv = current_price / bvps_input if bvps_input > 0 else 0
 
-                            # Kesimpulan Hasil Valuasi
                             st.markdown("### 🎯 Kesimpulan Valuasi Perbankan")
                             res_b1, res_b2 = st.columns(2)
                             res_b1.metric("Harga Pasar Saat Ini", f"{current_price:,.2f}")
@@ -257,40 +240,30 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                 st.write(f"**Justified PBV Teoritis:** {justified_pbv:.2f}x")
                                 st.write(f"**Spread ROE - Cost of Equity:** {(roe_input - ke_input):.2f}%")
 
-                            # SCREENER 5 PILAR KHUSUS KEUANGAN
                             st.markdown("---")
                             st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Finansial)")
                             passed_bank, failed_bank = [], []
 
-                                                        # Pilar 1: Lindy Effect (Uji Eksistensi Bursa)
                             period_str = f"{FILTERS_KEUANGAN['min_years_listed']}y"
                             df = yf.download(ticker_input, period=period_str, interval="1d", progress=False)
-                            
-                            # --- SUNTIKAN KODE DEBUGGING DI LAYAR ---
-                            st.warning(f"🔍 DEBUG P1: Mesin meminta data {period_str}. Yahoo Finance mengembalikan: {len(df)} baris (hari perdagangan).")
-                            # ----------------------------------------
                             
                             if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
                                 passed_bank.append(f"P1 (Lindy Effect: Lulus > {FILTERS_KEUANGAN['min_years_listed']} Tahun)")
                             else: 
                                 failed_bank.append(f"P1 (Lindy Effect): Gagal. Mesin hanya membaca {len(df)} hari aktif.")
 
-                            # Pilar 3: Profitabilitas ROE
                             if roe_input >= FILTERS_KEUANGAN['roe_min']:
                                 passed_bank.append(f"P3 (Super Profitabilitas: ROE {roe_input:.1f}% >= {FILTERS_KEUANGAN['roe_min']}%)")
                             else: failed_bank.append(f"P3 (Profitabilitas Lemah): ROE {roe_input:.1f}% di bawah standar institusi.")
 
-                            # Pilar 4: Efisiensi ROA Bank
                             if roa_input >= FILTERS_KEUANGAN['roa_min']:
                                 passed_bank.append(f"P4 (Efisiensi Aset: ROA {roa_input:.2f}% >= {FILTERS_KEUANGAN['roa_min']}%)")
                             else: failed_bank.append(f"P4 (Efisiensi Rendah): ROA {roa_input:.2f}% (Batas aman industri perbankan: {FILTERS_KEUANGAN['roa_min']}%)")
 
-                            # Pilar 5: Proteksi Valuasi (Harga Pasar vs Harga Teoretis PBV)
                             if market_pbv <= justified_pbv:
                                 passed_bank.append(f"P5 (Diskon Teoretis: PBV Pasar {market_pbv:.2f}x <= Fair PBV {justified_pbv:.2f}x)")
                             else: failed_bank.append(f"P5 (Valuasi Premium): Pasar menghargai terlalu mahal (PBV {market_pbv:.2f}x > Fair PBV {justified_pbv:.2f}x)")
 
-                            # Pilar 8: Momentum Teknikal (RSI)
                             if not df.empty:
                                 close_prices = df['Close'].squeeze() if isinstance(df.columns, pd.MultiIndex) else df['Close']
                                 df['RSI'] = ta.momentum.RSIIndicator(close_prices, window=14).rsi()
@@ -300,7 +273,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                 else: failed_bank.append(f"P8 (Teknikal): RSI {latest_rsi:.1f} di luar batas aman akumulasi")
                             else: failed_bank.append("P8 (Teknikal): Data harga gagal diambil.")
 
-                            # Cetak Ringkasan Akhir
                             skor_bank = len(passed_bank)
                             st.metric("Skor Kualitas Institusional Perbankan", f"{skor_bank} / 5")
                             
