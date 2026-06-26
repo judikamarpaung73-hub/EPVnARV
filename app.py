@@ -294,45 +294,43 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                     st.write("- **RSI (14 Hari):** Data Kosong")
 
                             # 5. Tampilan UI Lolos/Gagal Pilar Finansial
-                            st.markdown("---")
-                            st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Finansial)")
-                            passed_bank, failed_bank = [], []
-                            
-                            if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
-                                passed_bank.append(f"P1 (Lindy Effect: Lulus > {FILTERS_KEUANGAN['min_years_listed']} Tahun)")
-                            else: 
-                                failed_bank.append(f"P1 (Lindy Effect): Gagal. Data hari bursa tidak mencukupi.")
+                        st.markdown("---")
+                        st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Riil)")
+                        passed, failed = [], []
 
-                            if roe_input >= FILTERS_KEUANGAN['roe_min']:
-                                passed_bank.append(f"P3 (Super Profitabilitas: ROE {roe_input:.1f}% >= {FILTERS_KEUANGAN['roe_min']}%)")
-                            else: failed_bank.append(f"P3 (Profitabilitas Lemah): ROE {roe_input:.1f}% di bawah standar institusi.")
+                        # Logika Evaluasi dengan Detail Metrik
+                        metrics = [
+                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, "Kombinasi Margin > 27.5%"),
+                            ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
+                            ("P5 (Cash Conv)", cash_conv, FILTERS_RIIL['cash_conversion_min'], "%"),
+                            ("P5 (Debt/EBITDA)", debt_ebitda, FILTERS_RIIL['net_debt_ebitda_max'], "x (Maks)"),
+                            ("P10 (FCF Yield)", fcf_yield, 5.0, "%")
+                        ]
 
-                            if roa_input >= FILTERS_KEUANGAN['roa_min']:
-                                passed_bank.append(f"P4 (Efisiensi Aset: ROA {roa_input:.2f}% >= {FILTERS_KEUANGAN['roa_min']}%)")
-                            else: failed_bank.append(f"P4 (Efisiensi Rendah): ROA {roa_input:.2f}% (Batas aman industri: {FILTERS_KEUANGAN['roa_min']}%)")
+                        for label, val, min_val, unit in metrics:
+                            if (label == "P5 (Debt/EBITDA)" and val <= min_val) or (label != "P5 (Debt/EBITDA)" and val >= min_val):
+                                passed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
+                            else:
+                                failed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
 
-                            if market_pbv <= justified_pbv:
-                                passed_bank.append(f"P5 (Diskon Teoretis: PBV Pasar {market_pbv:.2f}x <= Fair PBV {justified_pbv:.2f}x)")
-                            else: failed_bank.append(f"P5 (Valuasi Premium): Pasar menghargai terlalu mahal (PBV {market_pbv:.2f}x > Fair PBV {justified_pbv:.2f}x)")
+                        # Lindy & RSI
+                        if not df.empty and len(df) >= (200 * FILTERS_RIIL['min_years_listed']):
+                            passed.append(f"P1 (Lindy): Lulus {FILTERS_RIIL['min_years_listed']} Tahun")
+                        else: failed.append("P1 (Lindy): Gagal")
+                        
+                        if isinstance(latest_rsi, float):
+                            if FILTERS_RIIL['rsi_min'] <= latest_rsi <= FILTERS_RIIL['rsi_max']:
+                                passed.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_RIIL['rsi_min']}-{FILTERS_RIIL['rsi_max']})")
+                            else: failed.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_RIIL['rsi_min']}-{FILTERS_RIIL['rsi_max']})")
 
-                            if isinstance(latest_rsi, float):
-                                if FILTERS_KEUANGAN['rsi_min'] <= latest_rsi <= FILTERS_KEUANGAN['rsi_max']:
-                                    passed_bank.append(f"P8 (Teknikal: RSI {latest_rsi:.1f} berada di Zona Akumulasi)")
-                                else: failed_bank.append(f"P8 (Teknikal): RSI {latest_rsi:.1f} di luar batas aman akumulasi")
-                            else: failed_bank.append("P8 (Teknikal): Data harga gagal ditarik.")
-
-                            skor_bank = len(passed_bank)
-                            st.metric("Skor Kualitas Institusional Perbankan", f"{skor_bank} / 5")
-                            
-                            if skor_bank == 5: st.success("🚨 KANDIDAT JANGKAR SEKTOR FINANSIAL SEMPURNA!")
-                            elif skor_bank >= 3: st.info("🏦 Emiten finansial layak pantau dengan catatan koreksi.")
-                            else: st.error("☠️ HIGH RISK FINANCIAL LOGIC. Struktur bisnis atau valuasi rusak.")
-
-                            col_bp, col_bf = st.columns(2)
-                            with col_bp:
-                                st.markdown("**✅ Pilar yang Lolos:**")
-                                for p in passed_bank: st.markdown(f"- {p}")
-                            with col_bf:
-                                st.markdown("**❌ Pilar yang Gagal:**")
-                                for f in failed_bank: st.markdown(f"- {f}")
+                        skor = len(passed)
+                        st.metric("Skor Kualitas Institusional", f"{skor} / 6")
+                        
+                        col_p, col_f = st.columns(2)
+                        with col_p:
+                            st.markdown("**✅ Lolos:**")
+                            for p in passed: st.markdown(f"- {p}")
+                        with col_f:
+                            st.markdown("**❌ Gagal:**")
+                            for f in failed: st.markdown(f"- {f}")
             except Exception as e: st.error(f"❌ Terjadi kesalahan pengolahan data perbankan: {e}")
