@@ -167,35 +167,34 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Riil)")
                         passed, failed = [], []
 
-                        if gross_margin >= FILTERS_RIIL['gross_margin_min'] and op_margin >= FILTERS_RIIL['operating_margin_min']:
-                            passed.append("P3 (Kualitas Margins)")
-                        else: failed.append(f"P3 (Kualitas): Gross {gross_margin:.1f}%, Op {op_margin:.1f}%")
+                        # Logika Evaluasi dengan Detail Metrik
+                        metrics = [
+                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, "Kombinasi Margin > 27.5%"),
+                            ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
+                            ("P5 (Cash Conv)", cash_conv, FILTERS_RIIL['cash_conversion_min'], "%"),
+                            ("P5 (Debt/EBITDA)", debt_ebitda, FILTERS_RIIL['net_debt_ebitda_max'], "x (Maks)"),
+                            ("P10 (FCF Yield)", fcf_yield, 5.0, "%")
+                        ]
 
-                        if roic >= FILTERS_RIIL['roic_min']: passed.append(f"P4 (Pemajemuk/ROIC: {roic:.1f}%)")
-                        else: failed.append(f"P4 (Pemajemuk/ROIC): {roic:.1f}%")
+                        for label, val, min_val, unit in metrics:
+                            if (label == "P5 (Debt/EBITDA)" and val <= min_val) or (label != "P5 (Debt/EBITDA)" and val >= min_val):
+                                passed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
+                            else:
+                                failed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
 
-                        p5_reasons = []
-                        if cash_conv < FILTERS_RIIL['cash_conversion_min']: p5_reasons.append(f"Cash Conv {cash_conv:.1f}%")
-                        if debt_ebitda > FILTERS_RIIL['net_debt_ebitda_max']: p5_reasons.append(f"Debt/EBITDA {debt_ebitda:.2f}x")
-                        if int_cover < FILTERS_RIIL['interest_coverage_min']: p5_reasons.append(f"Int Cover {int_cover:.1f}x")
-                        
-                        if not p5_reasons: passed.append(f"P5 (Neraca Sehat | Debt: {debt_ebitda:.2f}x)")
-                        else: failed.append(f"P5 (Neraca): {', '.join(p5_reasons)}")
-
-                        if fcf_yield >= 5.0: passed.append(f"P10 (Valuasi FCF Yield: {fcf_yield:.1f}%)")
-                        else: failed.append(f"P10 (Valuasi FCF Yield): {fcf_yield:.1f}%")
-
+                        # Lindy & RSI
                         if not df.empty and len(df) >= (200 * FILTERS_RIIL['min_years_listed']):
-                            passed.append(f"P1 (Lindy Effect: Lulus {FILTERS_RIIL['min_years_listed']} Tahun)")
-                        else: failed.append("P1 (Lindy Effect): Gagal")
-
+                            passed.append(f"P1 (Lindy): Lulus {FILTERS_RIIL['min_years_listed']} Tahun")
+                        else: failed.append("P1 (Lindy): Gagal")
+                        
                         if isinstance(latest_rsi, float):
-                            if FILTERS_RIIL['rsi_min'] <= latest_rsi <= FILTERS_RIIL['rsi_max']: passed.append(f"P8 (Teknikal: RSI {latest_rsi:.1f})")
-                            else: failed.append(f"P8 (Teknikal): RSI {latest_rsi:.1f} di luar batas")
-                        else: failed.append("P8 (Teknikal): Data harga gagal ditarik")
+                            if FILTERS_RIIL['rsi_min'] <= latest_rsi <= FILTERS_RIIL['rsi_max']:
+                                passed.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_RIIL['rsi_min']}-{FILTERS_RIIL['rsi_max']})")
+                            else: failed.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_RIIL['rsi_min']}-{FILTERS_RIIL['rsi_max']})")
 
                         skor = len(passed)
                         st.metric("Skor Kualitas Institusional", f"{skor} / 6")
+                        
                         col_p, col_f = st.columns(2)
                         with col_p:
                             st.markdown("**✅ Lolos:**")
@@ -203,6 +202,7 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         with col_f:
                             st.markdown("**❌ Gagal:**")
                             for f in failed: st.markdown(f"- {f}")
+
             except Exception as e: st.error(f"❌ Sistem Eror Sektor Riil: {e}")
 
 elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
