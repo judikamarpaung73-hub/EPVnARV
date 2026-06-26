@@ -262,11 +262,18 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Finansial)")
                             passed_bank, failed_bank = [], []
 
-                            # Pilar 1: Lindy Effect (Uji Eksistensi Bursa)
-                            df = yf.download(ticker_input, period=f"{FILTERS_KEUANGAN['min_years_listed']}y", interval="1d", progress=False)
-                            if not df.empty and len(df) >= (250 * FILTERS_KEUANGAN['min_years_listed']):
+                                                        # Pilar 1: Lindy Effect (Uji Eksistensi Bursa)
+                            period_str = f"{FILTERS_KEUANGAN['min_years_listed']}y"
+                            df = yf.download(ticker_input, period=period_str, interval="1d", progress=False)
+                            
+                            # --- SUNTIKAN KODE DEBUGGING DI LAYAR ---
+                            st.warning(f"🔍 DEBUG P1: Mesin meminta data {period_str}. Yahoo Finance mengembalikan: {len(df)} baris (hari perdagangan).")
+                            # ----------------------------------------
+                            
+                            if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
                                 passed_bank.append(f"P1 (Lindy Effect: Lulus > {FILTERS_KEUANGAN['min_years_listed']} Tahun)")
-                            else: failed_bank.append("P1 (Lindy Effect): Rekam jejak listing terlalu pendek.")
+                            else: 
+                                failed_bank.append(f"P1 (Lindy Effect): Gagal. Mesin hanya membaca {len(df)} hari aktif.")
 
                             # Pilar 3: Profitabilitas ROE
                             if roe_input >= FILTERS_KEUANGAN['roe_min']:
