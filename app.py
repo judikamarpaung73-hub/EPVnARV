@@ -169,7 +169,7 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
 
                         # Logika Evaluasi dengan Detail Metrik
                         metrics = [
-                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, "Kombinasi Margin > 27.5%"),
+                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, ", Kombinasi Margin > 27.5%"),
                             ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
                             ("P5 (Cash Conv)", cash_conv, FILTERS_RIIL['cash_conversion_min'], "%"),
                             ("P5 (Debt/EBITDA)", debt_ebitda, FILTERS_RIIL['net_debt_ebitda_max'], "x (Maks)"),
@@ -300,7 +300,7 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
 
                         # Logika Evaluasi dengan Detail Metrik
                         metrics = [
-                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, "Kombinasi Margin > 27.5%"),
+                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, ", Kombinasi Margin > 27.5%"),
                             ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
                             ("P5 (Cash Conv)", cash_conv, FILTERS_RIIL['cash_conversion_min'], "%"),
                             ("P5 (Debt/EBITDA)", debt_ebitda, FILTERS_RIIL['net_debt_ebitda_max'], "x (Maks)"),
