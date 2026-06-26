@@ -161,7 +161,7 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         else: failed.append(f"P10 (Valuasi FCF Yield): {fcf_yield:.1f}%")
 
                         df = yf.download(ticker_input, period=f"{FILTERS_RIIL['min_years_listed']}y", interval="1d", progress=False)
-                        if not df.empty and len(df) >= (250 * FILTERS_RIIL['min_years_listed']):
+                        if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
                             passed.append(f"P1 (Lindy Effect: Lulus {FILTERS_RIIL['min_years_listed']} Tahun)")
                         else: failed.append("P1 (Lindy Effect): Gagal")
 
