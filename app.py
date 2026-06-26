@@ -294,43 +294,45 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                     st.write("- **RSI (14 Hari):** Data Kosong")
 
                             # 5. Tampilan UI Lolos/Gagal Pilar Finansial
-                        st.markdown("---")
-                        st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Riil)")
-                        passed, failed = [], []
+                            st.markdown("---")
+                            st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Finansial)")
+                            passed_bank, failed_bank = [], []
+                            
+                            # Bank Metrics
+                            bank_metrics = [
+                                ("P3 (ROE)", roe_input, FILTERS_KEUANGAN['roe_min'], "%"),
+                                ("P4 (ROA)", roa_input, FILTERS_KEUANGAN['roa_min'], "%"),
+                                ("P5 (PBV vs Fair)", market_pbv, justified_pbv, "x (PBV Pasar <= Fair)")
+                            ]
 
-                        # Logika Evaluasi dengan Detail Metrik
-                        metrics = [
-                            ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, ", Kombinasi Margin > 27.5%"),
-                            ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
-                            ("P5 (Cash Conv)", cash_conv, FILTERS_RIIL['cash_conversion_min'], "%"),
-                            ("P5 (Debt/EBITDA)", debt_ebitda, FILTERS_RIIL['net_debt_ebitda_max'], "x (Maks)"),
-                            ("P10 (FCF Yield)", fcf_yield, 5.0, "%")
-                        ]
+                            for label, val, limit, unit in bank_metrics:
+                                # PBV spesial case (karena lebih kecil lebih baik)
+                                if "PBV" in label:
+                                    if val <= limit: passed_bank.append(f"{label}: {val:.2f}{unit}")
+                                    else: failed_bank.append(f"{label}: {val:.2f}{unit}")
+                                else:
+                                    if val >= limit: passed_bank.append(f"{label}: {val:.1f}{unit} (Min: {limit}{unit})")
+                                    else: failed_bank.append(f"{label}: {val:.1f}{unit} (Min: {limit}{unit})")
 
-                        for label, val, min_val, unit in metrics:
-                            if (label == "P5 (Debt/EBITDA)" and val <= min_val) or (label != "P5 (Debt/EBITDA)" and val >= min_val):
-                                passed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
-                            else:
-                                failed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
+                            # Lindy & RSI
+                            if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
+                                passed_bank.append(f"P1 (Lindy): Lulus > {FILTERS_KEUANGAN['min_years_listed']} Tahun")
+                            else: failed_bank.append("P1 (Lindy): Gagal")
 
-                        # Lindy & RSI
-                        if not df.empty and len(df) >= (200 * FILTERS_RIIL['min_years_listed']):
-                            passed.append(f"P1 (Lindy): Lulus {FILTERS_RIIL['min_years_listed']} Tahun")
-                        else: failed.append("P1 (Lindy): Gagal")
-                        
-                        if isinstance(latest_rsi, float):
-                            if FILTERS_RIIL['rsi_min'] <= latest_rsi <= FILTERS_RIIL['rsi_max']:
-                                passed.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_RIIL['rsi_min']}-{FILTERS_RIIL['rsi_max']})")
-                            else: failed.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_RIIL['rsi_min']}-{FILTERS_RIIL['rsi_max']})")
+                            if isinstance(latest_rsi, float):
+                                if FILTERS_KEUANGAN['rsi_min'] <= latest_rsi <= FILTERS_KEUANGAN['rsi_max']:
+                                    passed_bank.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_KEUANGAN['rsi_min']}-{FILTERS_KEUANGAN['rsi_max']})")
+                                else: failed_bank.append(f"P8 (RSI): {latest_rsi:.1f} (Range: {FILTERS_KEUANGAN['rsi_min']}-{FILTERS_KEUANGAN['rsi_max']})")
 
-                        skor = len(passed)
-                        st.metric("Skor Kualitas Institusional", f"{skor} / 6")
-                        
-                        col_p, col_f = st.columns(2)
-                        with col_p:
-                            st.markdown("**✅ Lolos:**")
-                            for p in passed: st.markdown(f"- {p}")
-                        with col_f:
-                            st.markdown("**❌ Gagal:**")
-                            for f in failed: st.markdown(f"- {f}")
+                            skor_bank = len(passed_bank)
+                            st.metric("Skor Kualitas Institusional Perbankan", f"{skor_bank} / 5")
+                            
+                            col_bp, col_bf = st.columns(2)
+                            with col_bp:
+                                st.markdown("**✅ Lolos:**")
+                                for p in passed_bank: st.markdown(f"- {p}")
+                            with col_bf:
+                                st.markdown("**❌ Gagal:**")
+                                for f in failed_bank: st.markdown(f"- {f}")
+
             except Exception as e: st.error(f"❌ Terjadi kesalahan pengolahan data perbankan: {e}")
