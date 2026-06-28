@@ -4,7 +4,7 @@ import pandas as pd
 import ta
 import numpy as np
 
-st.set_page_config(page_title="Mesin Audit Multi-Sektor", layout="centered", page_icon="📈")
+st.set_page_config(page_title="Mesin Audit Multi-Sektor", layout="wide", page_icon="📈")
 
 FILTERS_RIIL = {
     'min_market_cap_usd': 500000000,
@@ -66,17 +66,30 @@ def safe_float(val, default=0.0):
 
 st.sidebar.title("🛡️ Panel Kendali Multi-Sektor")
 sektor_pilihan = st.sidebar.radio(
-    "Pilih Sektor Emiten:",
-    ["Sektor Riil (Teknologi, Konsumsi, Ritel)", "Sektor Keuangan (Bank & Asuransi)", "Strategi Taktis (1-3 Tahun)"]
+    "Pilih Modul Audit:",
+    [
+        "🏭 Sektor Riil (EPV & ARV)", 
+        "🏦 Sektor Keuangan (Justified PBV)", 
+        "🎯 Taktis 1-3 Thn (Sektor Riil)",
+        "🎯 Taktis 1-3 Thn (Sektor Keuangan)"
+    ]
 )
 st.sidebar.markdown("---")
-st.sidebar.info("Sistem akan menyesuaikan seluruh formula matematika dan pilar evaluasi berdasarkan sektor yang dipilih.")
+st.sidebar.info("Sistem akan menyesuaikan formula dan pilar berdasarkan sektor yang dipilih.")
 
-if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
+
+# ============================================================
+# MODUL 1: SEKTOR RIIL (EPV & ARV)
+# ============================================================
+if sektor_pilihan == "🏭 Sektor Riil (EPV & ARV)":
     st.title("🏭 Sektor Riil: Auditing EPV & ARV")
-    st.write("Menggunakan kapasitas Arus Kas Bebas (FCF) tanpa pertumbuhan dan biaya reproduksi aset.")
-
-    ticker_input = st.text_input("Masukkan Ticker Saham Sektor Riil (Contoh: META, UNVR.JK):", "").upper()
+    
+    # KOTAK INPUT ANTI-BLOKIR (HARUS PENCET ENTER / TOMBOL)
+    with st.form("search_riil"):
+        raw_ticker = st.text_input("Masukkan Ticker Saham (Ketik lalu tekan ENTER pada keyboard Anda):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+    
+    ticker_input = raw_ticker
 
     if ticker_input:
         with st.spinner(f"Mengekstraksi data industri untuk {ticker_input}..."):
@@ -87,18 +100,17 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                 if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
                     st.error("⚠️ Emiten tidak ditemukan atau data kosong.")
                 else:
-                    current_price = float(info.get('currentPrice', info.get('previousClose', 0)) or 0)
-                    shares_raw = float(info.get('sharesOutstanding', 0) or 0)
-                    eps_raw = float(info.get('trailingEps', 0) or 0)
-                    market_cap = float(info.get('marketCap', 1) or 1)
+                    current_price = safe_float(info.get('currentPrice', info.get('previousClose', 0)))
+                    shares_raw = safe_float(info.get('sharesOutstanding', 0))
+                    eps_raw = safe_float(info.get('trailingEps', 0))
+                    market_cap = safe_float(info.get('marketCap', 1))
 
                     fcf_raw = 0.0
                     cf = stock.cash_flow
-                    if cf is not None and not cf.empty:
-                        if 'Free Cash Flow' in cf.index:
-                            fcf_history = cf.loc['Free Cash Flow'].dropna().head(3)
-                            if len(fcf_history) > 0: fcf_raw = float(fcf_history.mean())
-                    if fcf_raw == 0.0: fcf_raw = float(info.get('freeCashflow', 0) or 0)
+                    if cf is not None and not cf.empty and 'Free Cash Flow' in cf.index:
+                        fcf_history = cf.loc['Free Cash Flow'].dropna().head(3)
+                        if len(fcf_history) > 0: fcf_raw = float(fcf_history.mean())
+                    if fcf_raw == 0.0: fcf_raw = safe_float(info.get('freeCashflow', 0))
 
                     bs = stock.balance_sheet
                     equity_raw = 0.0
@@ -117,20 +129,21 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         if 'Research And Development' in inc.index:
                             rd_raw = float(inc.loc['Research And Development'].dropna().head(5).sum())
 
-                    gross_margin = info.get('grossMargins', 0) * 100
-                    op_margin = info.get('operatingMargins', 0) * 100
-                    roic = info.get('returnOnEquity', info.get('returnOnAssets', 0)) * 100
-                    net_income = float(info.get('netIncomeToCommon', 1) or 1)
-                    ebitda = float(info.get('ebitda', 0) or 0)
-                    total_debt = float(info.get('totalDebt', 0) or 0)
+                    gross_margin = safe_float(info.get('grossMargins', 0)) * 100
+                    op_margin = safe_float(info.get('operatingMargins', 0)) * 100
+                    roic = safe_float(info.get('returnOnEquity', info.get('returnOnAssets', 0))) * 100
+                    net_income = safe_float(info.get('netIncomeToCommon', 1))
+                    if net_income == 0: net_income = 1
+                    ebitda = safe_float(info.get('ebitda', 0))
+                    total_debt = safe_float(info.get('totalDebt', 0))
                     
                     raw_debt_ebitda = info.get('debtToEbitda', None)
                     debt_ebitda = float(raw_debt_ebitda) if raw_debt_ebitda is not None else (total_debt / ebitda if ebitda > 0 else 0.0)
-                    int_expense = float(info.get('interestExpense', 1) or 1)
-                    int_cover = abs(ebitda / int_expense) if int_expense != 0 else 999
+                    int_expense = safe_float(info.get('interestExpense', 1))
+                    if int_expense == 0: int_expense = 1
+                    int_cover = abs(ebitda / int_expense)
 
                     st.markdown("---")
-                    if fcf_raw <= 0: st.warning("⚠️ **PERINGATAN KRITIS:** FCF negatif/0. Mesin beralih ke EPS.")
                     
                     with st.form("riil_override_form"):
                         col_a, col_b = st.columns(2)
@@ -145,7 +158,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         submit_btn = st.form_submit_button("Jalankan Audit Sektor Riil")
 
                     if submit_btn and shares_input > 0:
-                        # 1. Kalkulasi Valuasi
                         eps_fcf = fcf_input / shares_input if fcf_input > 0 else eps_input
                         basis_laba = "FCF per Share" if fcf_input > 0 else "EPS Trailing"
                         epv = eps_fcf * 15
@@ -154,7 +166,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         harga_wajar = epv if franchise_value > 0 else min(epv, arv_per_share)
                         zona_beli = harga_wajar * 0.80
                         
-                        # 2. Kalkulasi Pilar & Tarikan Data Teknikal
                         cash_conv = (fcf_input / net_income) * 100 if net_income > 0 else 0
                         fcf_yield = (fcf_input / market_cap) * 100 if market_cap > 0 else 0
                         
@@ -165,7 +176,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             df['RSI'] = ta.momentum.RSIIndicator(close_prices, window=14).rsi()
                             latest_rsi = float(df['RSI'].iloc[-1])
 
-                        # 3. Tampilan UI Kesimpulan Valuasi
                         st.markdown("### 🎯 Kesimpulan Valuasi Sektor Riil")
                         res1, res2 = st.columns(2)
                         res1.metric("Harga Pasar Saat Ini", f"{current_price:,.2f}")
@@ -175,7 +185,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         if franchise_value > 0: st.success("🔥 TERDETEKSI MOAT: Memiliki nilai waralaba.")
                         else: st.error("⚠️ VALUE TRAP: Bersifat padat modal.")
 
-                        # 4. Tampilan UI Breakdown Kuantitatif Riil
                         with st.expander("🔍 Detail Breakdown Kuantitatif (Valuasi & 6 Pilar)"):
                             st.markdown("**METRIK VALUASI:**")
                             st.write(f"- **Basis Laba:** {basis_laba}")
@@ -197,12 +206,10 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             else:
                                 st.write("- **RSI (14 Hari):** Data Kosong")
 
-                        # 5. Tampilan UI Lolos/Gagal Pilar
                         st.markdown("---")
                         st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Riil)")
                         passed, failed = [], []
 
-                        # Logika Evaluasi dengan Detail Metrik
                         metrics = [
                             ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, ", Kombinasi Margin > 27.5%"),
                             ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
@@ -217,7 +224,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             else:
                                 failed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
 
-                        # Lindy & RSI
                         if not df.empty and len(df) >= (200 * FILTERS_RIIL['min_years_listed']):
                             passed.append(f"P1 (Lindy): Lulus {FILTERS_RIIL['min_years_listed']} Tahun")
                         else: failed.append("P1 (Lindy): Gagal")
@@ -233,18 +239,28 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         col_p, col_f = st.columns(2)
                         with col_p:
                             st.markdown("**✅ Lolos:**")
-                            for p in passed: st.markdown(f"- {p}")
+                            for p in passed:
+                                st.markdown(f"- {p}")
                         with col_f:
                             st.markdown("**❌ Gagal:**")
-                            for f in failed: st.markdown(f"- {f}")
+                            for f in failed:
+                                st.markdown(f"- {f}")
 
             except Exception as e: st.error(f"❌ Sistem Eror Sektor Riil: {e}")
 
-elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
-    st.title("🏦 Sektor Keuangan: Auditing Justified PBV Model")
-    st.write("Menggunakan korelasi antara Return on Equity (ROE), Suku Bunga Diskonto, dan Nilai Buku Per Lembar Saham (BVPS).")
 
-    ticker_input = st.text_input("Masukkan Ticker Saham Finansial (Contoh: BBCA.JK, BBRI.JK, JPM):", "").upper()
+# ============================================================
+# MODUL 2: SEKTOR KEUANGAN (JUSTIFIED PBV)
+# ============================================================
+elif sektor_pilihan == "🏦 Sektor Keuangan (Justified PBV)":
+    st.title("🏦 Sektor Keuangan: Auditing Justified PBV Model")
+    
+    # KOTAK INPUT ANTI-BLOKIR
+    with st.form("search_bank"):
+        raw_ticker = st.text_input("Masukkan Ticker Saham Finansial (Ketik lalu tekan ENTER pada keyboard Anda):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+        
+    ticker_input = raw_ticker
 
     if ticker_input:
         with st.spinner(f"Mengekstraksi neraca perbankan untuk {ticker_input}..."):
@@ -255,11 +271,10 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                 if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
                     st.error("⚠️ Emiten tidak ditemukan atau data kosong.")
                 else:
-                    current_price = float(info.get('currentPrice', info.get('previousClose', 0)) or 0)
-                    bvps_raw = float(info.get('bookValue', 0) or 0)
-                    roe_raw = float(info.get('returnOnEquity', 0) * 100 or 0)
-                    roa_raw = float(info.get('returnOnAssets', 0) * 100 or 0)
-                    shares_raw = float(info.get('sharesOutstanding', 0) or 0)
+                    current_price = safe_float(info.get('currentPrice', info.get('previousClose', 0)))
+                    bvps_raw = safe_float(info.get('bookValue', 0))
+                    roe_raw = safe_float(info.get('returnOnEquity', 0)) * 100
+                    roa_raw = safe_float(info.get('returnOnAssets', 0)) * 100
 
                     st.markdown("---")
                     st.info(f"ℹ️ **Data Terdeteksi:** ROE: {roe_raw:.2f}% | BVPS (Nilai Buku/Lembar): {bvps_raw:,.2f}")
@@ -272,16 +287,15 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             roe_input = st.number_input("Return on Equity (ROE %)", value=roe_raw, step=1.0)
                             roa_input = st.number_input("Return on Assets (ROA %)", value=roa_raw, step=0.1)
                         with col_d:
-                            ke_input = st.number_input("Cost of Equity / Batas Diskonto (Ke %)", value=11.0, step=0.5, help="Tingkat pengembalian minimum wajib bagi investor.")
-                            g_input = st.number_input("Long-term Growth Rate (g %)", value=6.0, step=0.5, help="Ekspektasi pertumbuhan kredit jangka panjang emiten.")
+                            ke_input = st.number_input("Cost of Equity / Batas Diskonto (Ke %)", value=11.0, step=0.5)
+                            g_input = st.number_input("Long-term Growth Rate (g %)", value=6.0, step=0.5)
                         
                         submit_bank_btn = st.form_submit_button("Jalankan Audit Keuangan")
 
                     if submit_bank_btn:
                         if ke_input <= g_input:
-                            st.error("❌ Eror Matematika: Nilai Cost of Equity (Ke) harus lebih besar daripada tingkat pertumbuhan (g).")
+                            st.error("❌ Eror Matematika: Nilai Cost of Equity (Ke) harus lebih besar dari pertumbuhan (g).")
                         else:
-                            # 1. Kalkulasi Matematika Bank
                             roe_decimal = roe_input / 100
                             g_decimal = g_input / 100
                             ke_decimal = ke_input / 100
@@ -290,7 +304,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             zona_beli_bank = harga_wajar_bank * 0.80
                             market_pbv = current_price / bvps_input if bvps_input > 0 else 0
                             
-                            # 2. Tarik Data Teknikal
                             period_str = f"{FILTERS_KEUANGAN['min_years_listed']}y"
                             df = yf.download(ticker_input, period=period_str, interval="1d", progress=False)
                             latest_rsi = "N/A"
@@ -299,20 +312,17 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                 df['RSI'] = ta.momentum.RSIIndicator(close_prices, window=14).rsi()
                                 latest_rsi = float(df['RSI'].iloc[-1])
 
-                            # 3. Tampilan UI Kesimpulan
                             st.markdown("### 🎯 Kesimpulan Valuasi Perbankan")
                             res_b1, res_b2 = st.columns(2)
                             res_b1.metric("Harga Pasar Saat Ini", f"{current_price:,.2f}")
                             res_b2.metric("Harga Wajar (Fair Justified PBV)", f"{harga_wajar_bank:,.2f}")
-                            
                             st.metric("Zona Beli (MoS 20%)", f"Maks. {zona_beli_bank:,.2f}")
 
                             if roe_input > ke_input:
-                                st.success(f"🔥 ECONOMIC MOAT POSITIF: Bank sukses menghasilkan return ({roe_input:.1f}%) di atas biaya modalnya ({ke_input:.1f}%). PBV Wajar secara teoritis layak dihargai {justified_pbv:.2f}x.")
+                                st.success(f"🔥 ECONOMIC MOAT POSITIF: ROE ({roe_input:.1f}%) di atas biaya modal ({ke_input:.1f}%).")
                             else:
-                                st.error(f"☠️ VALUE DESTRUKTIF: Operasional bank membakar modal pemegang saham karena ROE ({roe_input:.1f}%) < Cost of Equity ({ke_input:.1f}%).")
+                                st.error(f"☠️ VALUE DESTRUKTIF: ROE ({roe_input:.1f}%) < Cost of Equity ({ke_input:.1f}%).")
 
-                            # 4. Tampilan UI Breakdown Kuantitatif Finansial
                             with st.expander("🔍 Detail Breakdown Kuantitatif (Valuasi & 5 Pilar)"):
                                 st.markdown("**METRIK VALUASI (GORDON GROWTH):**")
                                 st.write(f"- **Market PBV Saat Ini:** {market_pbv:.2f}x")
@@ -328,12 +338,10 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                 else:
                                     st.write("- **RSI (14 Hari):** Data Kosong")
 
-                            # 5. Tampilan UI Lolos/Gagal Pilar Finansial
                             st.markdown("---")
                             st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Finansial)")
                             passed_bank, failed_bank = [], []
                             
-                            # Bank Metrics
                             bank_metrics = [
                                 ("P3 (ROE)", roe_input, FILTERS_KEUANGAN['roe_min'], "%"),
                                 ("P4 (ROA)", roa_input, FILTERS_KEUANGAN['roa_min'], "%"),
@@ -341,7 +349,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             ]
 
                             for label, val, limit, unit in bank_metrics:
-                                # PBV spesial case (karena lebih kecil lebih baik)
                                 if "PBV" in label:
                                     if val <= limit: passed_bank.append(f"{label}: {val:.2f}{unit}")
                                     else: failed_bank.append(f"{label}: {val:.2f}{unit}")
@@ -349,7 +356,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                     if val >= limit: passed_bank.append(f"{label}: {val:.1f}{unit} (Min: {limit}{unit})")
                                     else: failed_bank.append(f"{label}: {val:.1f}{unit} (Min: {limit}{unit})")
 
-                            # Lindy & RSI
                             if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
                                 passed_bank.append(f"P1 (Lindy): Lulus > {FILTERS_KEUANGAN['min_years_listed']} Tahun")
                             else: failed_bank.append("P1 (Lindy): Gagal")
@@ -365,22 +371,28 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             col_bp, col_bf = st.columns(2)
                             with col_bp:
                                 st.markdown("**✅ Lolos:**")
-                                for p in passed_bank: st.markdown(f"- {p}")
+                                for p in passed_bank:
+                                    st.markdown(f"- {p}")
                             with col_bf:
                                 st.markdown("**❌ Gagal:**")
-                                for f in failed_bank: st.markdown(f"- {f}")
+                                for f in failed_bank:
+                                    st.markdown(f"- {f}")
 
             except Exception as e: st.error(f"❌ Terjadi kesalahan pengolahan data perbankan: {e}")
 
-# ============================================================
-# STRATEGI TAKTIS (1-3 TAHUN)
-# ============================================================
-elif sektor_pilihan == "Strategi Taktis (1-3 Tahun)":
-    st.title("🎯 Mesin Audit 10 Pilar Taktis (1-3 Tahun)")
-    st.write("Sistem ekstraksi data fundamental & teknikal dengan fitur koreksi data manual (Override).")
 
-    taktis_tipe = st.radio("Pilih Kategori Emiten:", ["Sektor Riil", "Sektor Keuangan (Perbankan/Asuransi)"])
-    ticker_input = st.text_input("🔍 Masukkan Ticker Saham (Contoh: BMRI.JK, JPFA.JK):", "").upper()
+# ============================================================
+# MODUL 3: STRATEGI TAKTIS 1-3 TAHUN (SEKTOR RIIL)
+# ============================================================
+elif sektor_pilihan == "🎯 Taktis 1-3 Thn (Sektor Riil)":
+    st.title("🎯 Taktis 1-3 Tahun: Sektor Riil")
+    
+    # KOTAK INPUT ANTI-BLOKIR
+    with st.form("search_taktis_riil"):
+        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham (Ketik lalu tekan ENTER pada keyboard Anda):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+        
+    ticker_input = raw_ticker
 
     if ticker_input:
         with st.spinner(f"Mengekstraksi data taktis untuk {ticker_input}..."):
@@ -394,9 +406,19 @@ elif sektor_pilihan == "Strategi Taktis (1-3 Tahun)":
                     current_price = safe_float(info.get('currentPrice', info.get('previousClose', 0)))
                     pbv_raw = safe_float(info.get('priceToBook', 0))
                     roe_raw = safe_float(info.get('returnOnEquity', 0)) * 100
+                    ev_ebitda_raw = safe_float(info.get('enterpriseToEbitda', 0))
                     div_yield_raw = safe_float(info.get('dividendYield', 0)) * 100
                     eps_growth_raw = safe_float(info.get('earningsGrowth', 0)) * 100
+                    rev_growth_raw = safe_float(info.get('revenueGrowth', 0)) * 100
+                    op_margin_raw = safe_float(info.get('operatingMargins', 0)) * 100
                     
+                    raw_de = safe_float(info.get('debtToEquity', 0))
+                    de_ratio_raw = raw_de / 100 if raw_de > 0 else 0.0
+                    
+                    earn_g_decimal = safe_float(info.get('earningsGrowth', 0))
+                    rev_g_decimal = safe_float(info.get('revenueGrowth', 0))
+                    dol_raw = (earn_g_decimal / rev_g_decimal) if rev_g_decimal > 0 else 0.0
+
                     df = yf.download(ticker_input, period="1y", interval="1d", progress=False)
                     latest_close, latest_ma200, latest_rsi = current_price, 0.0, 50.0
                     
@@ -409,219 +431,250 @@ elif sektor_pilihan == "Strategi Taktis (1-3 Tahun)":
                         latest_rsi = float(df['RSI'].iloc[-1]) if not pd.isna(df['RSI'].iloc[-1]) else 50.0
 
                     st.markdown("---")
-                    st.info("💡 **Tinjau dan Koreksi Data:** Anda dapat mengedit angkanya secara manual jika diperlukan.")
+                    
+                    with st.form("tactical_riil_form"):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.markdown("**1. Valuasi & Laba**")
+                            pbv_input = st.number_input("PBV (Price to Book)", value=float(pbv_raw), step=0.1)
+                            roe_input = st.number_input("ROE (%)", value=float(roe_raw), step=1.0)
+                            ev_ebitda_input = st.number_input("EV / EBITDA", value=float(ev_ebitda_raw), step=0.5)
+                        with col2:
+                            st.markdown("**2. Tuas Ops & Efisiensi**")
+                            eps_g_input = st.number_input("Pertumbuhan EPS (%)", value=float(eps_growth_raw), step=1.0)
+                            rev_g_input = st.number_input("Pertumbuhan Pendapatan (%)", value=float(rev_growth_raw), step=1.0)
+                            dol_input = st.number_input("DOL (Op Leverage)", value=float(dol_raw), step=0.1)
+                        with col3:
+                            st.markdown("**3. Keamanan & Neraca**")
+                            div_yield_input = st.number_input("Dividend Yield (%)", value=float(div_yield_raw), step=0.5)
+                            op_margin_input = st.number_input("Operating Margin (%)", value=float(op_margin_raw), step=1.0)
+                            de_ratio_input = st.number_input("DER", value=float(de_ratio_raw), step=0.1)
 
-                    if taktis_tipe == "Sektor Riil":
-                        rev_growth_raw = safe_float(info.get('revenueGrowth', 0)) * 100
-                        ev_ebitda_raw = safe_float(info.get('enterpriseToEbitda', 0))
-                        op_margin_raw = safe_float(info.get('operatingMargins', 0)) * 100
-                        raw_de = safe_float(info.get('debtToEquity', 0))
-                        de_ratio_raw = raw_de / 100 if raw_de > 0 else 0.0
+                        st.markdown("**Data Teknikal (Statik)**")
+                        col_t1, col_t2, col_t3 = st.columns(3)
+                        col_t1.metric("Harga Terakhir", f"{latest_close:,.2f}")
+                        col_t2.metric("MA-200", f"{latest_ma200:,.2f}")
+                        col_t3.metric("RSI (14)", f"{latest_rsi:,.2f}")
+
+                        submit_btn = st.form_submit_button("🚀 JALANKAN AUDIT 10 PILAR RIIL")
+
+                    if submit_btn:
+                        passed, failed = [], []
                         
-                        earn_g_decimal = safe_float(info.get('earningsGrowth', 0))
-                        rev_g_decimal = safe_float(info.get('revenueGrowth', 0))
-                        dol_raw = (earn_g_decimal / rev_g_decimal) if rev_g_decimal > 0 else 0.0
+                        if 0 < pbv_input <= TACTICAL_FILTERS_RIIL['p1_pbv_max']:
+                            passed.append(f"**P1 [UTAMA: Valuasi]** PBV {pbv_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_RIIL['p1_pbv_max']}x)")
+                        else:
+                            failed.append(f"**P1 [UTAMA: Valuasi]** PBV {pbv_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
 
-                        with st.form("tactical_riil_form"):
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.markdown("**1. Valuasi & Laba**")
-                                pbv_input = st.number_input("PBV (Price to Book)", value=float(pbv_raw), step=0.1)
-                                roe_input = st.number_input("ROE (%)", value=float(roe_raw), step=1.0)
-                                ev_ebitda_input = st.number_input("EV / EBITDA", value=float(ev_ebitda_raw), step=0.5)
-                            with col2:
-                                st.markdown("**2. Tuas Ops & Efisiensi**")
-                                eps_g_input = st.number_input("Pertumbuhan EPS (%)", value=float(eps_growth_raw), step=1.0)
-                                rev_g_input = st.number_input("Pertumbuhan Pendapatan (%)", value=float(rev_growth_raw), step=1.0)
-                                dol_input = st.number_input("DOL (Op Leverage)", value=float(dol_raw), step=0.1)
-                            with col3:
-                                st.markdown("**3. Keamanan & Neraca**")
-                                div_yield_input = st.number_input("Dividend Yield (%)", value=float(div_yield_raw), step=0.5)
-                                op_margin_input = st.number_input("Operating Margin (%)", value=float(op_margin_raw), step=1.0)
-                                de_ratio_input = st.number_input("Rasio Hutang / Ekuitas (DER)", value=float(de_ratio_raw), step=0.1)
+                        if roe_input >= TACTICAL_FILTERS_RIIL['p2_roe_min']:
+                            passed.append(f"**P2 [UTAMA: Kualitas]** ROE {roe_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p2_roe_min']}%)")
+                        else:
+                            failed.append(f"**P2 [UTAMA: Kualitas]** ROE {roe_input:.2f}% (Gagal: Di bawah standar)")
 
-                            st.markdown("**Data Teknikal (Statik)**")
-                            col_t1, col_t2, col_t3 = st.columns(3)
-                            col_t1.metric("Harga Terakhir", f"{latest_close:,.2f}")
-                            col_t2.metric("MA-200", f"{latest_ma200:,.2f}")
-                            col_t3.metric("RSI (14)", f"{latest_rsi:,.2f}")
+                        if dol_input >= TACTICAL_FILTERS_RIIL['p3_dol_min'] and eps_g_input > 0:
+                            passed.append(f"**P3 [UTAMA: Tuas Ops]** DOL {dol_input:.2f}x (Syarat: Min {TACTICAL_FILTERS_RIIL['p3_dol_min']}x)")
+                        else:
+                            failed.append(f"**P3 [UTAMA: Tuas Ops]** DOL {dol_input:.2f}x (Gagal: Tuas lemah / Laba Minus)")
 
-                            submit_btn = st.form_submit_button("🚀 JALANKAN AUDIT 10 PILAR RIIL")
+                        if 0 < ev_ebitda_input <= TACTICAL_FILTERS_RIIL['p4_ev_ebitda_max']:
+                            passed.append(f"**P4 [UTAMA: Siklus EV]** EV/EBITDA {ev_ebitda_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_RIIL['p4_ev_ebitda_max']}x)")
+                        else:
+                            failed.append(f"**P4 [UTAMA: Siklus EV]** EV/EBITDA {ev_ebitda_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
 
-                        if submit_btn:
-                            passed, failed = [], []
-                            
-                            if 0 < pbv_input <= TACTICAL_FILTERS_RIIL['p1_pbv_max']:
-                                passed.append(f"**P1 [UTAMA: Valuasi]** PBV {pbv_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_RIIL['p1_pbv_max']}x)")
-                            else:
-                                failed.append(f"**P1 [UTAMA: Valuasi]** PBV {pbv_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
+                        if div_yield_input >= TACTICAL_FILTERS_RIIL['p5_div_yield_min']:
+                            passed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p5_div_yield_min']}%)")
+                        else:
+                            failed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Gagal: Yield rendah)")
 
-                            if roe_input >= TACTICAL_FILTERS_RIIL['p2_roe_min']:
-                                passed.append(f"**P2 [UTAMA: Kualitas]** ROE {roe_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p2_roe_min']}%)")
-                            else:
-                                failed.append(f"**P2 [UTAMA: Kualitas]** ROE {roe_input:.2f}% (Gagal: Di bawah standar)")
+                        if eps_g_input >= TACTICAL_FILTERS_RIIL['p6_eps_growth_min']:
+                            passed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p6_eps_growth_min']}%)")
+                        else:
+                            failed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Gagal: Laba lambat/turun)")
 
-                            if dol_input >= TACTICAL_FILTERS_RIIL['p3_dol_min'] and eps_g_input > 0:
-                                passed.append(f"**P3 [UTAMA: Tuas Ops]** DOL {dol_input:.2f}x (Syarat: Min {TACTICAL_FILTERS_RIIL['p3_dol_min']}x)")
-                            else:
-                                failed.append(f"**P3 [UTAMA: Tuas Ops]** DOL {dol_input:.2f}x (Gagal: Tuas lemah / Laba Minus)")
+                        if op_margin_input >= TACTICAL_FILTERS_RIIL['p7_op_margin_min']:
+                            passed.append(f"**P7 [Margin Ops]** Margin {op_margin_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p7_op_margin_min']}%)")
+                        else:
+                            failed.append(f"**P7 [Margin Ops]** Margin {op_margin_input:.2f}% (Gagal: Margin tipis)")
 
-                            if 0 < ev_ebitda_input <= TACTICAL_FILTERS_RIIL['p4_ev_ebitda_max']:
-                                passed.append(f"**P4 [UTAMA: Siklus EV]** EV/EBITDA {ev_ebitda_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_RIIL['p4_ev_ebitda_max']}x)")
-                            else:
-                                failed.append(f"**P4 [UTAMA: Siklus EV]** EV/EBITDA {ev_ebitda_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
+                        if 0 <= de_ratio_input <= TACTICAL_FILTERS_RIIL['p8_de_ratio_max']:
+                            passed.append(f"**P8 [Kesehatan Neraca]** DER {de_ratio_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_RIIL['p8_de_ratio_max']}x)")
+                        else:
+                            failed.append(f"**P8 [Kesehatan Neraca]** DER {de_ratio_input:.2f}x (Gagal: Banyak Utang / Negatif)")
 
-                            if div_yield_input >= TACTICAL_FILTERS_RIIL['p5_div_yield_min']:
-                                passed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p5_div_yield_min']}%)")
-                            else:
-                                failed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Gagal: Yield rendah)")
+                        if latest_close > latest_ma200:
+                            passed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di atas MA200 ({latest_ma200:.2f})")
+                        else:
+                            failed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di bawah MA200 (AWAS: Pisau Jatuh)")
+                        
+                        if TACTICAL_FILTERS_RIIL['p10_rsi_min'] <= latest_rsi <= TACTICAL_FILTERS_RIIL['p10_rsi_max']:
+                            passed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Status: Netral/Aman)")
+                        else:
+                            failed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Gagal: Oversold / Overbought Ekstrem)")
 
-                            if eps_g_input >= TACTICAL_FILTERS_RIIL['p6_eps_growth_min']:
-                                passed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p6_eps_growth_min']}%)")
-                            else:
-                                failed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Gagal: Laba lambat/turun)")
+                        skor = len(passed)
+                        st.markdown("---")
+                        score_col, info_col = st.columns([1, 2])
+                        with score_col:
+                            st.metric(label="SKOR KUALITAS TAKTIS", value=f"{skor} / 10")
+                        with info_col:
+                            if skor >= 7: st.success("✅ **STATUS KANDIDAT:** SANGAT DIREKOMENDASIKAN.")
+                            elif skor >= 4: st.warning("⚠️ **STATUS KANDIDAT:** HOLD / PENGAMATAN.")
+                            else: st.error("☠️ **STATUS KANDIDAT:** HINDARI (VALUE TRAP).")
 
-                            if op_margin_input >= TACTICAL_FILTERS_RIIL['p7_op_margin_min']:
-                                passed.append(f"**P7 [Margin Ops]** Margin {op_margin_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_RIIL['p7_op_margin_min']}%)")
-                            else:
-                                failed.append(f"**P7 [Margin Ops]** Margin {op_margin_input:.2f}% (Gagal: Margin tipis)")
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        res_pass, res_fail = st.columns(2)
+                        with res_pass:
+                            st.markdown("### ✅ PILAR YANG TERPENUHI")
+                            for p in passed: st.success(p)
+                        with res_fail:
+                            st.markdown("### ❌ PILAR YANG GAGAL")
+                            for f in failed: st.error(f)
 
-                            if 0 <= de_ratio_input <= TACTICAL_FILTERS_RIIL['p8_de_ratio_max']:
-                                passed.append(f"**P8 [Kesehatan Neraca]** DER {de_ratio_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_RIIL['p8_de_ratio_max']}x)")
-                            else:
-                                failed.append(f"**P8 [Kesehatan Neraca]** DER {de_ratio_input:.2f}x (Gagal: Banyak Utang / Negatif)")
+            except Exception as e:
+                st.error(f"❌ Terjadi kesalahan pada sistem: {e}")
 
-                            if latest_close > latest_ma200:
-                                passed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di atas MA200 ({latest_ma200:.2f})")
-                            else:
-                                failed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di bawah MA200 (AWAS: Pisau Jatuh)")
-                            
-                            if TACTICAL_FILTERS_RIIL['p10_rsi_min'] <= latest_rsi <= TACTICAL_FILTERS_RIIL['p10_rsi_max']:
-                                passed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Status: Netral/Aman)")
-                            else:
-                                failed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Gagal: Oversold / Overbought Ekstrem)")
 
-                            skor = len(passed)
-                            st.markdown("---")
-                            score_col, info_col = st.columns([1, 2])
-                            with score_col:
-                                st.metric(label="SKOR KUALITAS TAKTIS", value=f"{skor} / 10")
-                            with info_col:
-                                if skor >= 7: st.success("✅ **STATUS KANDIDAT:** SANGAT DIREKOMENDASIKAN. Memiliki dislokasi makro yang tervalidasi fundamental.")
-                                elif skor >= 4: st.warning("⚠️ **STATUS KANDIDAT:** HOLD / PENGAMATAN. Harus masuk ke salah satu dari 4 Pilar Utama agar layak beli.")
-                                else: st.error("☠️ **STATUS KANDIDAT:** HINDARI (VALUE TRAP).")
+# ============================================================
+# MODUL 4: STRATEGI TAKTIS 1-3 TAHUN (SEKTOR KEUANGAN)
+# ============================================================
+elif sektor_pilihan == "🎯 Taktis 1-3 Thn (Sektor Keuangan)":
+    st.title("🎯 Taktis 1-3 Tahun: Sektor Keuangan")
+    
+    # KOTAK INPUT ANTI-BLOKIR
+    with st.form("search_taktis_bank"):
+        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham Bank (Ketik lalu tekan ENTER pada keyboard Anda):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+        
+    ticker_input = raw_ticker
 
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            res_pass, res_fail = st.columns(2)
-                            with res_pass:
-                                st.markdown("### ✅ PILAR YANG TERPENUHI")
-                                for p in passed: st.success(p)
-                            with res_fail:
-                                st.markdown("### ❌ PILAR YANG GAGAL")
-                                for f in failed: st.error(f)
+    if ticker_input:
+        with st.spinner(f"Mengekstraksi data taktis untuk {ticker_input}..."):
+            try:
+                stock = yf.Ticker(ticker_input)
+                info = stock.info
+                
+                if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
+                    st.error("⚠️ Emiten tidak ditemukan atau data YFinance kosong.")
+                else:
+                    current_price = safe_float(info.get('currentPrice', info.get('previousClose', 0)))
+                    pbv_raw = safe_float(info.get('priceToBook', 0))
+                    roe_raw = safe_float(info.get('returnOnEquity', 0)) * 100
+                    roa_raw = safe_float(info.get('returnOnAssets', 0)) * 100
+                    per_raw = safe_float(info.get('trailingPE', 0))
+                    div_yield_raw = safe_float(info.get('dividendYield', 0)) * 100
+                    eps_growth_raw = safe_float(info.get('earningsGrowth', 0)) * 100
+                    rev_growth_raw = safe_float(info.get('revenueGrowth', 0)) * 100
+                    net_margin_raw = safe_float(info.get('profitMargins', 0)) * 100
 
-                    elif taktis_tipe == "Sektor Keuangan (Perbankan/Asuransi)":
-                        roa_raw = safe_float(info.get('returnOnAssets', 0)) * 100
-                        per_raw = safe_float(info.get('trailingPE', 0))
-                        net_margin_raw = safe_float(info.get('profitMargins', 0)) * 100
-                        rev_growth_raw = safe_float(info.get('revenueGrowth', 0)) * 100
+                    df = yf.download(ticker_input, period="1y", interval="1d", progress=False)
+                    latest_close, latest_ma200, latest_rsi = current_price, 0.0, 50.0
+                    
+                    if not df.empty and len(df) > 50:
+                        close_prices = df['Close'].squeeze() if isinstance(df.columns, pd.MultiIndex) else df['Close']
+                        latest_close = float(close_prices.iloc[-1])
+                        df['MA200'] = ta.trend.SMAIndicator(close_prices, window=200).sma_indicator()
+                        latest_ma200 = float(df['MA200'].iloc[-1]) if not pd.isna(df['MA200'].iloc[-1]) else latest_close
+                        df['RSI'] = ta.momentum.RSIIndicator(close_prices, window=14).rsi()
+                        latest_rsi = float(df['RSI'].iloc[-1]) if not pd.isna(df['RSI'].iloc[-1]) else 50.0
 
-                        with st.form("tactical_bank_form"):
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.markdown("**1. Valuasi & Laba**")
-                                pbv_input = st.number_input("PBV (Price to Book)", value=float(pbv_raw), step=0.1)
-                                per_input = st.number_input("PER (Price to Earnings)", value=float(per_raw), step=0.5)
-                                roe_input = st.number_input("ROE (%)", value=float(roe_raw), step=1.0)
-                            with col2:
-                                st.markdown("**2. Tuas Ops & Efisiensi**")
-                                roa_input = st.number_input("ROA (%)", value=float(roa_raw), step=0.1)
-                                eps_g_input = st.number_input("Pertumbuhan EPS (%)", value=float(eps_growth_raw), step=1.0)
-                                rev_g_input = st.number_input("Pertumbuhan Pendapatan (%)", value=float(rev_growth_raw), step=1.0)
-                            with col3:
-                                st.markdown("**3. Keamanan & Neraca**")
-                                div_yield_input = st.number_input("Dividend Yield (%)", value=float(div_yield_raw), step=0.5)
-                                net_margin_input = st.number_input("Net Margin (%)", value=float(net_margin_raw), step=1.0)
+                    st.markdown("---")
+                    
+                    with st.form("tactical_bank_form"):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.markdown("**1. Valuasi & Laba**")
+                            pbv_input = st.number_input("PBV (Price to Book)", value=float(pbv_raw), step=0.1)
+                            per_input = st.number_input("PER (Price to Earnings)", value=float(per_raw), step=0.5)
+                            roe_input = st.number_input("ROE (%)", value=float(roe_raw), step=1.0)
+                        with col2:
+                            st.markdown("**2. Tuas Ops & Efisiensi**")
+                            roa_input = st.number_input("ROA (%)", value=float(roa_raw), step=0.1)
+                            eps_g_input = st.number_input("Pertumbuhan EPS (%)", value=float(eps_growth_raw), step=1.0)
+                            rev_g_input = st.number_input("Pertumbuhan Pendapatan (%)", value=float(rev_growth_raw), step=1.0)
+                        with col3:
+                            st.markdown("**3. Keamanan & Neraca**")
+                            div_yield_input = st.number_input("Dividend Yield (%)", value=float(div_yield_raw), step=0.5)
+                            net_margin_input = st.number_input("Net Margin (%)", value=float(net_margin_raw), step=1.0)
 
-                            st.markdown("**Data Teknikal (Statik)**")
-                            col_t1, col_t2, col_t3 = st.columns(3)
-                            col_t1.metric("Harga Terakhir", f"{latest_close:,.2f}")
-                            col_t2.metric("MA-200", f"{latest_ma200:,.2f}")
-                            col_t3.metric("RSI (14)", f"{latest_rsi:,.2f}")
+                        st.markdown("**Data Teknikal (Statik)**")
+                        col_t1, col_t2, col_t3 = st.columns(3)
+                        col_t1.metric("Harga Terakhir", f"{latest_close:,.2f}")
+                        col_t2.metric("MA-200", f"{latest_ma200:,.2f}")
+                        col_t3.metric("RSI (14)", f"{latest_rsi:,.2f}")
 
-                            submit_btn = st.form_submit_button("🚀 JALANKAN AUDIT 10 PILAR FINANSIAL")
+                        submit_btn = st.form_submit_button("🚀 JALANKAN AUDIT 10 PILAR FINANSIAL")
 
-                        if submit_btn:
-                            passed, failed = [], []
-                            
-                            if 0 < pbv_input <= TACTICAL_FILTERS_BANK['p1_pbv_max']:
-                                passed.append(f"**P1 [UTAMA: Valuasi]** PBV {pbv_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_BANK['p1_pbv_max']}x)")
-                            else:
-                                failed.append(f"**P1 [UTAMA: Valuasi]** PBV {pbv_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
+                    if submit_btn:
+                        passed, failed = [], []
+                        
+                        if 0 < pbv_input <= TACTICAL_FILTERS_BANK['p1_pbv_max']:
+                            passed.append(f"**P1 [Valuasi]** PBV {pbv_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_BANK['p1_pbv_max']}x)")
+                        else:
+                            failed.append(f"**P1 [Valuasi]** PBV {pbv_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
 
-                            if roe_input >= TACTICAL_FILTERS_BANK['p2_roe_min']:
-                                passed.append(f"**P2 [UTAMA: Kualitas]** ROE {roe_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p2_roe_min']}%)")
-                            else:
-                                failed.append(f"**P2 [UTAMA: Kualitas]** ROE {roe_input:.2f}% (Gagal: Di bawah standar)")
+                        if roe_input >= TACTICAL_FILTERS_BANK['p2_roe_min']:
+                            passed.append(f"**P2 [Kualitas]** ROE {roe_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p2_roe_min']}%)")
+                        else:
+                            failed.append(f"**P2 [Kualitas]** ROE {roe_input:.2f}% (Gagal: Di bawah standar)")
 
-                            if roa_input >= TACTICAL_FILTERS_BANK['p3_roa_min']:
-                                passed.append(f"**P3 [UTAMA: Efisiensi]** ROA {roa_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p3_roa_min']}%)")
-                            else:
-                                failed.append(f"**P3 [UTAMA: Efisiensi]** ROA {roa_input:.2f}% (Gagal: Efisiensi aset rendah)")
+                        if roa_input >= TACTICAL_FILTERS_BANK['p3_roa_min']:
+                            passed.append(f"**P3 [Efisiensi]** ROA {roa_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p3_roa_min']}%)")
+                        else:
+                            failed.append(f"**P3 [Efisiensi]** ROA {roa_input:.2f}% (Gagal: Efisiensi aset rendah)")
 
-                            if 0 < per_input <= TACTICAL_FILTERS_BANK['p4_per_max']:
-                                passed.append(f"**P4 [UTAMA: Deep Value]** PER {per_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_BANK['p4_per_max']}x)")
-                            else:
-                                failed.append(f"**P4 [UTAMA: Deep Value]** PER {per_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
+                        if 0 < per_input <= TACTICAL_FILTERS_BANK['p4_per_max']:
+                            passed.append(f"**P4 [Deep Value]** PER {per_input:.2f}x (Syarat: Maks {TACTICAL_FILTERS_BANK['p4_per_max']}x)")
+                        else:
+                            failed.append(f"**P4 [Deep Value]** PER {per_input:.2f}x (Gagal: Valuasi mahal / Negatif)")
 
-                            if div_yield_input >= TACTICAL_FILTERS_BANK['p5_div_yield_min']:
-                                passed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p5_div_yield_min']}%)")
-                            else:
-                                failed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Gagal: Yield rendah)")
+                        if div_yield_input >= TACTICAL_FILTERS_BANK['p5_div_yield_min']:
+                            passed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p5_div_yield_min']}%)")
+                        else:
+                            failed.append(f"**P5 [Bantalan Kas]** Yield {div_yield_input:.2f}% (Gagal: Yield rendah)")
 
-                            if eps_g_input >= TACTICAL_FILTERS_BANK['p6_eps_growth_min']:
-                                passed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p6_eps_growth_min']}%)")
-                            else:
-                                failed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Gagal: Laba lambat/turun)")
+                        if eps_g_input >= TACTICAL_FILTERS_BANK['p6_eps_growth_min']:
+                            passed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p6_eps_growth_min']}%)")
+                        else:
+                            failed.append(f"**P6 [Pertumbuhan Laba]** EPS Tumbuh {eps_g_input:.2f}% (Gagal: Laba lambat/turun)")
 
-                            if net_margin_input >= TACTICAL_FILTERS_BANK['p7_net_margin_min']:
-                                passed.append(f"**P7 [Profitabilitas]** Net Margin {net_margin_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p7_net_margin_min']}%)")
-                            else:
-                                failed.append(f"**P7 [Profitabilitas]** Net Margin {net_margin_input:.2f}% (Gagal: Margin tipis)")
+                        if net_margin_input >= TACTICAL_FILTERS_BANK['p7_net_margin_min']:
+                            passed.append(f"**P7 [Profitabilitas]** Net Margin {net_margin_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p7_net_margin_min']}%)")
+                        else:
+                            failed.append(f"**P7 [Profitabilitas]** Net Margin {net_margin_input:.2f}% (Gagal: Margin tipis)")
 
-                            if rev_g_input >= TACTICAL_FILTERS_BANK['p8_rev_growth_min']:
-                                passed.append(f"**P8 [Top-Line]** Rev Growth {rev_g_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p8_rev_growth_min']}%)")
-                            else:
-                                failed.append(f"**P8 [Top-Line]** Rev Growth {rev_g_input:.2f}% (Gagal: Pertumbuhan kredit/pendapatan lambat)")
+                        if rev_g_input >= TACTICAL_FILTERS_BANK['p8_rev_growth_min']:
+                            passed.append(f"**P8 [Top-Line]** Rev Growth {rev_g_input:.2f}% (Syarat: Min {TACTICAL_FILTERS_BANK['p8_rev_growth_min']}%)")
+                        else:
+                            failed.append(f"**P8 [Top-Line]** Rev Growth {rev_g_input:.2f}% (Gagal: Pertumbuhan kredit/pendapatan lambat)")
 
-                            if latest_close > latest_ma200:
-                                passed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di atas MA200 ({latest_ma200:.2f})")
-                            else:
-                                failed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di bawah MA200 (AWAS: Pisau Jatuh)")
-                            
-                            if TACTICAL_FILTERS_BANK['p10_rsi_min'] <= latest_rsi <= TACTICAL_FILTERS_BANK['p10_rsi_max']:
-                                passed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Status: Netral/Aman)")
-                            else:
-                                failed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Gagal: Oversold / Overbought Ekstrem)")
+                        if latest_close > latest_ma200:
+                            passed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di atas MA200 ({latest_ma200:.2f})")
+                        else:
+                            failed.append(f"**P9 [Konfirmasi Tren]** Harga ({latest_close:.2f}) di bawah MA200 (AWAS: Pisau Jatuh)")
+                        
+                        if TACTICAL_FILTERS_BANK['p10_rsi_min'] <= latest_rsi <= TACTICAL_FILTERS_BANK['p10_rsi_max']:
+                            passed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Status: Netral/Aman)")
+                        else:
+                            failed.append(f"**P10 [Momentum]** RSI {latest_rsi:.2f} (Gagal: Oversold / Overbought Ekstrem)")
 
-                            skor = len(passed)
-                            st.markdown("---")
-                            score_col, info_col = st.columns([1, 2])
-                            with score_col:
-                                st.metric(label="SKOR KUALITAS TAKTIS", value=f"{skor} / 10")
-                            with info_col:
-                                if skor >= 7: st.success("✅ **STATUS KANDIDAT:** SANGAT DIREKOMENDASIKAN. Memiliki dislokasi makro yang tervalidasi fundamental.")
-                                elif skor >= 4: st.warning("⚠️ **STATUS KANDIDAT:** HOLD / PENGAMATAN. Harus masuk ke salah satu dari 4 Pilar Utama agar layak beli.")
-                                else: st.error("☠️ **STATUS KANDIDAT:** HINDARI (VALUE TRAP).")
+                        skor = len(passed)
+                        st.markdown("---")
+                        score_col, info_col = st.columns([1, 2])
+                        with score_col:
+                            st.metric(label="SKOR KUALITAS TAKTIS", value=f"{skor} / 10")
+                        with info_col:
+                            if skor >= 7: st.success("✅ **STATUS KANDIDAT:** SANGAT DIREKOMENDASIKAN.")
+                            elif skor >= 4: st.warning("⚠️ **STATUS KANDIDAT:** HOLD / PENGAMATAN.")
+                            else: st.error("☠️ **STATUS KANDIDAT:** HINDARI (VALUE TRAP).")
 
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            res_pass, res_fail = st.columns(2)
-                            with res_pass:
-                                st.markdown("### ✅ PILAR YANG TERPENUHI")
-                                for p in passed: st.success(p)
-                            with res_fail:
-                                st.markdown("### ❌ PILAR YANG GAGAL")
-                                for f in failed: st.error(f)
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        res_pass, res_fail = st.columns(2)
+                        with res_pass:
+                            st.markdown("### ✅ PILAR YANG TERPENUHI")
+                            for p in passed: st.success(p)
+                        with res_fail:
+                            st.markdown("### ❌ PILAR YANG GAGAL")
+                            for f in failed: st.error(f)
 
             except Exception as e:
                 st.error(f"❌ Terjadi kesalahan pada sistem: {e}")
