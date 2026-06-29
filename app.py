@@ -72,11 +72,19 @@ sektor_pilihan = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.info("Sistem akan menyesuaikan seluruh formula matematika dan pilar evaluasi berdasarkan sektor yang dipilih.")
 
+
+# ============================================================
+# MODUL 1: SEKTOR RIIL
+# ============================================================
 if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
     st.title("🏭 Sektor Riil: Auditing EPV & ARV")
     st.write("Menggunakan kapasitas Arus Kas Bebas (FCF) tanpa pertumbuhan dan biaya reproduksi aset.")
 
-    ticker_input = st.text_input("Masukkan Ticker Saham Sektor Riil (Contoh: META, UNVR.JK):", "").upper()
+    with st.form("search_riil"):
+        raw_ticker = st.text_input("Masukkan Ticker Saham Sektor Riil (Ketik lalu tekan ENTER):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+
+    ticker_input = raw_ticker
 
     if ticker_input:
         with st.spinner(f"Mengekstraksi data industri untuk {ticker_input}..."):
@@ -145,7 +153,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         submit_btn = st.form_submit_button("Jalankan Audit Sektor Riil")
 
                     if submit_btn and shares_input > 0:
-                        # 1. Kalkulasi Valuasi
                         eps_fcf = fcf_input / shares_input if fcf_input > 0 else eps_input
                         basis_laba = "FCF per Share" if fcf_input > 0 else "EPS Trailing"
                         epv = eps_fcf * 15
@@ -154,7 +161,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         harga_wajar = epv if franchise_value > 0 else min(epv, arv_per_share)
                         zona_beli = harga_wajar * 0.80
                         
-                        # 2. Kalkulasi Pilar & Tarikan Data Teknikal
                         cash_conv = (fcf_input / net_income) * 100 if net_income > 0 else 0
                         fcf_yield = (fcf_input / market_cap) * 100 if market_cap > 0 else 0
                         
@@ -165,7 +171,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             df['RSI'] = ta.momentum.RSIIndicator(close_prices, window=14).rsi()
                             latest_rsi = float(df['RSI'].iloc[-1])
 
-                        # 3. Tampilan UI Kesimpulan Valuasi
                         st.markdown("### 🎯 Kesimpulan Valuasi Sektor Riil")
                         res1, res2 = st.columns(2)
                         res1.metric("Harga Pasar Saat Ini", f"{current_price:,.2f}")
@@ -175,7 +180,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         if franchise_value > 0: st.success("🔥 TERDETEKSI MOAT: Memiliki nilai waralaba.")
                         else: st.error("⚠️ VALUE TRAP: Bersifat padat modal.")
 
-                        # 4. Tampilan UI Breakdown Kuantitatif Riil
                         with st.expander("🔍 Detail Breakdown Kuantitatif (Valuasi & 6 Pilar)"):
                             st.markdown("**METRIK VALUASI:**")
                             st.write(f"- **Basis Laba:** {basis_laba}")
@@ -197,12 +201,10 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             else:
                                 st.write("- **RSI (14 Hari):** Data Kosong")
 
-                        # 5. Tampilan UI Lolos/Gagal Pilar
                         st.markdown("---")
                         st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Riil)")
                         passed, failed = [], []
 
-                        # Logika Evaluasi dengan Detail Metrik
                         metrics = [
                             ("P3 (Margin)", (gross_margin + op_margin) / 2, (FILTERS_RIIL['gross_margin_min'] + FILTERS_RIIL['operating_margin_min']) / 2, ", Kombinasi Margin > 27.5%"),
                             ("P4 (ROIC)", roic, FILTERS_RIIL['roic_min'], "%"),
@@ -217,7 +219,6 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                             else:
                                 failed.append(f"{label}: {val:.1f}{unit} (Min: {min_val}{unit})")
 
-                        # Lindy & RSI
                         if not df.empty and len(df) >= (200 * FILTERS_RIIL['min_years_listed']):
                             passed.append(f"P1 (Lindy): Lulus {FILTERS_RIIL['min_years_listed']} Tahun")
                         else: failed.append("P1 (Lindy): Gagal")
@@ -233,20 +234,26 @@ if sektor_pilihan == "Sektor Riil (Teknologi, Konsumsi, Ritel)":
                         col_p, col_f = st.columns(2)
                         with col_p:
                             st.markdown("**✅ Lolos:**")
-                            for p in passed:
-                                st.markdown(f"- {p}")
+                            for p in passed: st.markdown(f"- {p}")
                         with col_f:
                             st.markdown("**❌ Gagal:**")
-                            for f in failed:
-                                st.markdown(f"- {f}")
+                            for f in failed: st.markdown(f"- {f}")
 
             except Exception as e: st.error(f"❌ Sistem Eror Sektor Riil: {e}")
 
+
+# ============================================================
+# MODUL 2: SEKTOR KEUANGAN (AUTO CAPM)
+# ============================================================
 elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
     st.title("🏦 Sektor Keuangan: Auditing Justified PBV Model")
     st.write("Menggunakan korelasi antara Return on Equity (ROE), Suku Bunga Diskonto, dan Nilai Buku Per Lembar Saham (BVPS).")
 
-    ticker_input = st.text_input("Masukkan Ticker Saham Finansial (Contoh: BBCA.JK, BBRI.JK, JPM):", "").upper()
+    with st.form("search_bank"):
+        raw_ticker = st.text_input("Masukkan Ticker Saham Finansial (Ketik lalu tekan ENTER):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+        
+    ticker_input = raw_ticker
 
     if ticker_input:
         with st.spinner(f"Mengekstraksi neraca perbankan untuk {ticker_input}..."):
@@ -265,13 +272,13 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
 
                     # --- KALKULASI CAPM OTOMATIS ---
                     beta_raw = safe_float(info.get('beta'))
-                    if beta_raw == 0.0: beta_raw = 1.0 # Default jika beta tidak tersedia
+                    if beta_raw == 0.0: beta_raw = 1.0 
                     
                     is_indo = ticker_input.endswith('.JK')
-                    auto_rf = 6.5 if is_indo else 4.2  # Risk Free Rate (IDR vs USD)
-                    auto_erp = 6.0 if is_indo else 5.0 # Equity Risk Premium
+                    auto_rf = 6.5 if is_indo else 4.2  
+                    auto_erp = 6.0 if is_indo else 5.0 
                     auto_ke = auto_rf + (beta_raw * auto_erp)
-                    auto_g = 5.0 if is_indo else 3.0   # Default Long Term Growth
+                    auto_g = 5.0 if is_indo else 3.0   
                     # -------------------------------
 
                     st.markdown("---")
@@ -298,7 +305,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                         if ke_input <= g_input:
                             st.error("❌ Eror Matematika: Nilai Cost of Equity (Ke) harus lebih besar daripada tingkat pertumbuhan (g).")
                         else:
-                            # 1. Kalkulasi Matematika Bank
                             roe_decimal = roe_input / 100
                             g_decimal = g_input / 100
                             ke_decimal = ke_input / 100
@@ -307,7 +313,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             zona_beli_bank = harga_wajar_bank * 0.80
                             market_pbv = current_price / bvps_input if bvps_input > 0 else 0
                             
-                            # 2. Tarik Data Teknikal
                             period_str = f"{FILTERS_KEUANGAN['min_years_listed']}y"
                             df = yf.download(ticker_input, period=period_str, interval="1d", progress=False)
                             latest_rsi = "N/A"
@@ -316,7 +321,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                 df['RSI'] = ta.momentum.RSIIndicator(close_prices, window=14).rsi()
                                 latest_rsi = float(df['RSI'].iloc[-1])
 
-                            # 3. Tampilan UI Kesimpulan
                             st.markdown("### 🎯 Kesimpulan Valuasi Perbankan")
                             res_b1, res_b2 = st.columns(2)
                             res_b1.metric("Harga Pasar Saat Ini", f"{current_price:,.2f}")
@@ -329,7 +333,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             else:
                                 st.error(f"☠️ VALUE DESTRUKTIF: Operasional bank membakar modal pemegang saham karena ROE ({roe_input:.1f}%) < Cost of Equity ({ke_input:.1f}%).")
 
-                            # 4. Tampilan UI Breakdown Kuantitatif Finansial
                             with st.expander("🔍 Detail Breakdown Kuantitatif (Valuasi & 5 Pilar)"):
                                 st.markdown("**METRIK VALUASI (GORDON GROWTH):**")
                                 st.write(f"- **Market PBV Saat Ini:** {market_pbv:.2f}x")
@@ -345,12 +348,10 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                 else:
                                     st.write("- **RSI (14 Hari):** Data Kosong")
 
-                            # 5. Tampilan UI Lolos/Gagal Pilar Finansial
                             st.markdown("---")
                             st.markdown("### 🛡️ Hasil Pemindaian Multi-Pilar (Sektor Finansial)")
                             passed_bank, failed_bank = [], []
                             
-                            # Bank Metrics
                             bank_metrics = [
                                 ("P3 (ROE)", roe_input, FILTERS_KEUANGAN['roe_min'], "%"),
                                 ("P4 (ROA)", roa_input, FILTERS_KEUANGAN['roa_min'], "%"),
@@ -358,7 +359,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             ]
 
                             for label, val, limit, unit in bank_metrics:
-                                # PBV spesial case (karena lebih kecil lebih baik)
                                 if "PBV" in label:
                                     if val <= limit: passed_bank.append(f"{label}: {val:.2f}{unit}")
                                     else: failed_bank.append(f"{label}: {val:.2f}{unit}")
@@ -366,7 +366,6 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                                     if val >= limit: passed_bank.append(f"{label}: {val:.1f}{unit} (Min: {limit}{unit})")
                                     else: failed_bank.append(f"{label}: {val:.1f}{unit} (Min: {limit}{unit})")
 
-                            # Lindy & RSI
                             if not df.empty and len(df) >= (200 * FILTERS_KEUANGAN['min_years_listed']):
                                 passed_bank.append(f"P1 (Lindy): Lulus > {FILTERS_KEUANGAN['min_years_listed']} Tahun")
                             else: failed_bank.append("P1 (Lindy): Gagal")
@@ -382,14 +381,13 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             col_bp, col_bf = st.columns(2)
                             with col_bp:
                                 st.markdown("**✅ Lolos:**")
-                                for p in passed_bank:
-                                    st.markdown(f"- {p}")
+                                for p in passed_bank: st.markdown(f"- {p}")
                             with col_bf:
                                 st.markdown("**❌ Gagal:**")
-                                for f in failed_bank:
-                                    st.markdown(f"- {f}")
+                                for f in failed_bank: st.markdown(f"- {f}")
 
             except Exception as e: st.error(f"❌ Terjadi kesalahan pengolahan data perbankan: {e}")
+
 
 # ============================================================
 # MODUL 3: STRATEGI TAKTIS 1-3 TAHUN
@@ -399,7 +397,14 @@ elif sektor_pilihan == "Strategi Taktis (1-3 Tahun)":
     st.write("Sistem ekstraksi data fundamental & teknikal dengan fitur koreksi data manual (Override).")
 
     taktis_tipe = st.radio("Pilih Kategori Emiten:", ["Sektor Riil", "Sektor Keuangan (Perbankan/Asuransi)"])
-    ticker_input = st.text_input("🔍 Masukkan Ticker Saham (Contoh: BMRI.JK, JPFA.JK):", "").upper()
+    
+    # --- FORMULIR ANTI BLOKIR UNTUK TAKTIS ---
+    with st.form("search_taktis"):
+        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham (Ketik lalu tekan ENTER pada keyboard Anda):", "").upper()
+        submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
+    # -----------------------------------------
+
+    ticker_input = raw_ticker
 
     if ticker_input:
         with st.spinner(f"Mengekstraksi data taktis untuk {ticker_input}..."):
