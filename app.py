@@ -9,7 +9,7 @@ st.set_page_config(page_title="Mesin Audit Multi-Sektor", layout="centered", pag
 # ============================================================
 # SISTEM MEMORI (CACHE) ANTI-BLOKIR YAHOO FINANCE
 # ============================================================
-@st.cache_data(ttl=900, show_spinner=False) # Menyimpan data di memori selama 15 menit
+@st.cache_data(ttl=900, show_spinner=False) 
 def get_stock_info(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -28,7 +28,6 @@ def get_stock_history(ticker, period):
 def get_stock_financials(ticker):
     try:
         stock = yf.Ticker(ticker)
-        # Copy data agar aman di dalam cache
         cf = stock.cash_flow.copy() if stock.cash_flow is not None else pd.DataFrame()
         bs = stock.balance_sheet.copy() if stock.balance_sheet is not None else pd.DataFrame()
         inc = stock.financials.copy() if stock.financials is not None else pd.DataFrame()
@@ -276,9 +275,9 @@ if sektor_pilihan == "🏭 Sektor Riil (EPV & ARV)":
 
 
 # ============================================================
-# MODUL 2: SEKTOR KEUANGAN (AUTO CAPM)
+# MODUL 2: SEKTOR KEUANGAN (AUTO CAPM) - SINKRONISASI EMOTICON
 # ============================================================
-elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
+elif sektor_pilihan == "🏦 Sektor Keuangan (Justified PBV)":
     st.title("🏦 Sektor Keuangan: Auditing Justified PBV Model")
     st.write("Menggunakan korelasi antara Return on Equity (ROE), Suku Bunga Diskonto, dan Nilai Buku Per Lembar Saham (BVPS).")
 
@@ -421,7 +420,7 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
 
 
 # ============================================================
-# MODUL 3: STRATEGI TAKTIS 1-3 TAHUN
+# MODUL 3: STRATEGI TAKTIS 1-3 TAHUN - SINKRONISASI EMOTICON
 # ============================================================
 elif sektor_pilihan == "🎯 Strategi Taktis (1-3 Tahun)":
     st.title("🎯 Mesin Audit 10 Pilar Taktis (1-3 Tahun)")
@@ -430,7 +429,7 @@ elif sektor_pilihan == "🎯 Strategi Taktis (1-3 Tahun)":
     taktis_tipe = st.radio("Pilih Kategori Emiten:", ["Sektor Riil", "Sektor Keuangan (Perbankan/Asuransi)"])
     
     with st.form("search_taktis"):
-        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham (Ketik lalu tekan ENTER):", "").upper()
+        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham (Ketik lalu tekan ENTER untuk anti-blokir):", "").upper()
         submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
 
     ticker_input = raw_ticker
@@ -622,7 +621,7 @@ elif sektor_pilihan == "🎯 Strategi Taktis (1-3 Tahun)":
 
 
 # ============================================================
-# MODUL 4: SAHAM GROWTH (DCF KALKULATOR - TAMBAHAN MUTLAK)
+# MODUL 4: SAHAM GROWTH (DCF KALKULATOR) - SINKRONISASI EMOTICON
 # ============================================================
 elif sektor_pilihan == "🚀 Saham Growth (DCF Kalkulator)":
     st.title("🚀 Kalkulator Valuasi Jangka Panjang: Saham Growth (DCF Model)")
