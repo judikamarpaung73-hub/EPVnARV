@@ -6,6 +6,7 @@ import numpy as np
 
 st.set_page_config(page_title="Mesin Audit Multi-Sektor", layout="centered", page_icon="📈")
 
+
 FILTERS_RIIL = {
     'min_market_cap_usd': 500000000,
     'min_avg_volume': 100000,
