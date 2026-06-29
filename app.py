@@ -6,6 +6,36 @@ import numpy as np
 
 st.set_page_config(page_title="Mesin Audit Multi-Sektor", layout="centered", page_icon="📈")
 
+# ============================================================
+# SISTEM MEMORI (CACHE) ANTI-BLOKIR YAHOO FINANCE
+# ============================================================
+@st.cache_data(ttl=900, show_spinner=False) # Menyimpan data di memori selama 15 menit
+def get_stock_info(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        return dict(stock.info)
+    except:
+        return {}
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_stock_history(ticker, period):
+    try:
+        return yf.download(ticker, period=period, interval="1d", progress=False)
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_stock_financials(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        # Copy data agar aman di dalam cache
+        cf = stock.cash_flow.copy() if stock.cash_flow is not None else pd.DataFrame()
+        bs = stock.balance_sheet.copy() if stock.balance_sheet is not None else pd.DataFrame()
+        inc = stock.financials.copy() if stock.financials is not None else pd.DataFrame()
+        return cf, bs, inc
+    except:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
 
 FILTERS_RIIL = {
     'min_market_cap_usd': 500000000,
@@ -93,13 +123,13 @@ if sektor_pilihan == "🏭 Sektor Riil (EPV & ARV)":
     ticker_input = raw_ticker
 
     if ticker_input:
-        with st.spinner(f"Mengekstraksi data industri untuk {ticker_input}..."):
+        with st.spinner(f"Mengekstraksi data industri dari memori untuk {ticker_input}..."):
             try:
-                stock = yf.Ticker(ticker_input)
-                info = stock.info
+                info = get_stock_info(ticker_input)
+                cf, bs, inc = get_stock_financials(ticker_input)
                 
                 if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                    st.error("⚠️ Emiten tidak ditemukan atau data kosong.")
+                    st.error("⚠️ Emiten tidak ditemukan, data kosong, atau terblokir API.")
                 else:
                     current_price = float(info.get('currentPrice', info.get('previousClose', 0)) or 0)
                     shares_raw = float(info.get('sharesOutstanding', 0) or 0)
@@ -107,14 +137,12 @@ if sektor_pilihan == "🏭 Sektor Riil (EPV & ARV)":
                     market_cap = float(info.get('marketCap', 1) or 1)
 
                     fcf_raw = 0.0
-                    cf = stock.cash_flow
                     if cf is not None and not cf.empty:
                         if 'Free Cash Flow' in cf.index:
                             fcf_history = cf.loc['Free Cash Flow'].dropna().head(3)
                             if len(fcf_history) > 0: fcf_raw = float(fcf_history.mean())
                     if fcf_raw == 0.0: fcf_raw = float(info.get('freeCashflow', 0) or 0)
 
-                    bs = stock.balance_sheet
                     equity_raw = 0.0
                     if bs is not None and not bs.empty:
                         for key in ['Stockholders Equity', 'Total Stockholder Equity', 'Common Stock Equity']:
@@ -122,7 +150,6 @@ if sektor_pilihan == "🏭 Sektor Riil (EPV & ARV)":
                                 equity_raw = float(bs.loc[key].iloc[0])
                                 break
 
-                    inc = stock.financials
                     sga_raw = 0.0
                     rd_raw = 0.0
                     if inc is not None and not inc.empty:
@@ -170,7 +197,7 @@ if sektor_pilihan == "🏭 Sektor Riil (EPV & ARV)":
                         cash_conv = (fcf_input / net_income) * 100 if net_income > 0 else 0
                         fcf_yield = (fcf_input / market_cap) * 100 if market_cap > 0 else 0
                         
-                        df = yf.download(ticker_input, period=f"{FILTERS_RIIL['min_years_listed']}y", interval="1d", progress=False)
+                        df = get_stock_history(ticker_input, f"{FILTERS_RIIL['min_years_listed']}y")
                         latest_rsi = "N/A"
                         if not df.empty:
                             close_prices = df['Close'].squeeze() if isinstance(df.columns, pd.MultiIndex) else df['Close']
@@ -262,13 +289,12 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
     ticker_input = raw_ticker
 
     if ticker_input:
-        with st.spinner(f"Mengekstraksi neraca perbankan untuk {ticker_input}..."):
+        with st.spinner(f"Mengekstraksi neraca perbankan dari memori untuk {ticker_input}..."):
             try:
-                stock = yf.Ticker(ticker_input)
-                info = stock.info
+                info = get_stock_info(ticker_input)
                 
                 if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                    st.error("⚠️ Emiten tidak ditemukan atau data kosong.")
+                    st.error("⚠️ Emiten tidak ditemukan atau data kosong (API Terblokir).")
                 else:
                     current_price = float(info.get('currentPrice', info.get('previousClose', 0)) or 0)
                     bvps_raw = float(info.get('bookValue', 0) or 0)
@@ -319,8 +345,7 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
                             zona_beli_bank = harga_wajar_bank * 0.80
                             market_pbv = current_price / bvps_input if bvps_input > 0 else 0
                             
-                            period_str = f"{FILTERS_KEUANGAN['min_years_listed']}y"
-                            df = yf.download(ticker_input, period=period_str, interval="1d", progress=False)
+                            df = get_stock_history(ticker_input, f"{FILTERS_KEUANGAN['min_years_listed']}y")
                             latest_rsi = "N/A"
                             if not df.empty:
                                 close_prices = df['Close'].squeeze() if isinstance(df.columns, pd.MultiIndex) else df['Close']
@@ -398,26 +423,25 @@ elif sektor_pilihan == "Sektor Keuangan (Bank & Asuransi)":
 # ============================================================
 # MODUL 3: STRATEGI TAKTIS 1-3 TAHUN
 # ============================================================
-elif sektor_pilihan == "Strategi Taktis (1-3 Tahun)":
+elif sektor_pilihan == "🎯 Strategi Taktis (1-3 Tahun)":
     st.title("🎯 Mesin Audit 10 Pilar Taktis (1-3 Tahun)")
-    st.write("Sistem ekstraksi data fundamental & teknikal dengan fitur koreksi data manual (Override).")
+    st.write("Sistem ekstraksi data fundamental & teknikal dengan memori anti-blokir.")
 
     taktis_tipe = st.radio("Pilih Kategori Emiten:", ["Sektor Riil", "Sektor Keuangan (Perbankan/Asuransi)"])
     
     with st.form("search_taktis"):
-        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham (Ketik lalu tekan ENTER untuk anti-blokir):", "").upper()
+        raw_ticker = st.text_input("🔍 Masukkan Ticker Saham (Ketik lalu tekan ENTER):", "").upper()
         submit_search = st.form_submit_button("🔍 Tarik Data Emiten")
 
     ticker_input = raw_ticker
 
     if ticker_input:
-        with st.spinner(f"Mengekstraksi data taktis untuk {ticker_input}..."):
+        with st.spinner(f"Mengekstraksi data taktis dari memori untuk {ticker_input}..."):
             try:
-                stock = yf.Ticker(ticker_input)
-                info = stock.info
+                info = get_stock_info(ticker_input)
                 
                 if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                    st.error("⚠️ Emiten tidak ditemukan atau data YFinance kosong.")
+                    st.error("⚠️ Emiten tidak ditemukan atau data YFinance kosong (API Terblokir).")
                 else:
                     current_price = safe_float(info.get('currentPrice', info.get('previousClose', 0)))
                     pbv_raw = safe_float(info.get('priceToBook', 0))
@@ -425,7 +449,7 @@ elif sektor_pilihan == "Strategi Taktis (1-3 Tahun)":
                     div_yield_raw = safe_float(info.get('dividendYield', 0)) * 100
                     eps_growth_raw = safe_float(info.get('earningsGrowth', 0)) * 100
                     
-                    df = yf.download(ticker_input, period="1y", interval="1d", progress=False)
+                    df = get_stock_history(ticker_input, "1y")
                     latest_close, latest_ma200, latest_rsi = current_price, 0.0, 50.0
                     
                     if not df.empty and len(df) > 50:
@@ -611,30 +635,28 @@ elif sektor_pilihan == "🚀 Saham Growth (DCF Kalkulator)":
     ticker_input = raw_ticker
 
     if ticker_input:
-        with st.spinner(f"Menarik kapasitas laporan kas keras untuk {ticker_input}..."):
+        with st.spinner(f"Menarik kapasitas laporan kas keras dari memori untuk {ticker_input}..."):
             try:
-                stock = yf.Ticker(ticker_input)
-                info = stock.info
+                info = get_stock_info(ticker_input)
+                cf, bs, inc = get_stock_financials(ticker_input)
                 
                 if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                    st.error("⚠️ Emiten tidak ditemukan atau data YFinance kosong.")
+                    st.error("⚠️ Emiten tidak ditemukan atau data YFinance kosong (API Terblokir).")
                 else:
                     current_price = safe_float(info.get('currentPrice', info.get('previousClose', 0)))
                     shares_raw = safe_float(info.get('sharesOutstanding', 0))
                     
                     fcf_raw = 0.0
-                    cf = stock.cash_flow
                     if cf is not None and not cf.empty and 'Free Cash Flow' in cf.index:
                         fcf_history = cf.loc['Free Cash Flow'].dropna().head(3)
                         if len(fcf_history) > 0: fcf_raw = float(fcf_history.mean())
                     if fcf_raw == 0.0: fcf_raw = safe_float(info.get('freeCashflow', 0))
                     
                     beta_raw = safe_float(info.get('beta'))
-                    if beta_raw == 0.0: beta_raw = 1.1 # Default saham tech berisiko moderat
+                    if beta_raw == 0.0: beta_raw = 1.1 
                     
-                    # Hitung Auto-CAPM Jenuh untuk Saham Tech Global
-                    auto_rf = 4.2  # Suku bunga Obligasi AS 10-Thn
-                    auto_erp = 5.0 # Premium saham global
+                    auto_rf = 4.2  
+                    auto_erp = 5.0 
                     auto_ke = auto_rf + (beta_raw * auto_erp)
                     
                     st.markdown("---")
@@ -654,7 +676,6 @@ elif sektor_pilihan == "🚀 Saham Growth (DCF Kalkulator)":
                         submit_dcf = st.form_submit_button("🚀 HITUNG HARGA WAJAR DCF")
                     
                     if submit_dcf and shares_input > 0 and ke_input > growth_terminal:
-                        # Simulasi Matematika DCF Bertahap (2-Stage Discounted Cash Flow)
                         discount_rate = ke_input / 100
                         g_high = growth_high / 100
                         g_terminal = growth_terminal / 100
@@ -662,29 +683,24 @@ elif sektor_pilihan == "🚀 Saham Growth (DCF Kalkulator)":
                         pv_fcf = 0.0
                         temp_fcf = fcf_input
                         
-                        # Tahap 1: Diskon Arus Kas 5 Tahun Pertama
                         for year in range(1, 6):
                             temp_fcf = temp_fcf * (1 + g_high)
                             discount_factor = (1 + discount_rate) ** year
                             pv_fcf += temp_fcf / discount_factor
                         
-                        # Tahap 2: Hitung Terminal Value pada Tahun ke-5 dan diskon ke Hari Ini
                         terminal_value = (temp_fcf * (1 + g_terminal)) / (discount_rate - g_terminal)
                         pv_terminal_value = terminal_value / ((1 + discount_rate) ** 5)
                         
-                        # Nilai Intrinsik Total Perusahaan
                         total_intrinsic_value = pv_fcf + pv_terminal_value
                         harga_wajar_dcf = total_intrinsic_value / shares_input
-                        zona_beli_dcf = harga_wajar_dcf * 0.80 # MoS 20%
+                        zona_beli_dcf = harga_wajar_dcf * 0.80 
                         
-                        # Tampilan UI Laporan DCF
                         st.markdown("### 🎯 Hasil Laporan Valuasi Proyeksi Kas")
                         res_d1, res_d2 = st.columns(2)
                         res_d1.metric("Harga Pasar Saat Ini", f"${current_price:,.2f}")
                         res_d2.metric("Harga Wajar (Fair Value DCF)", f"${harga_wajar_dcf:,.2f}")
                         st.metric("Zona Beli (Batas Aman MoS 20%)", f"Maks. ${zona_beli_dcf:,.2f}")
                         
-                        # Analisis Komparasi Kritis
                         if current_price < zona_beli_dcf:
                             st.success(f"🔥 DISLOKASI VALUASI: Saham {ticker_input} terdeteksi Undervalued bahkan setelah dikenakan batas diskonto ketat {ke_input:.2f}%.")
                         elif current_price < harga_wajar_dcf:
@@ -692,7 +708,6 @@ elif sektor_pilihan == "🚀 Saham Growth (DCF Kalkulator)":
                         else:
                             st.error(f"☠️ PREMIUM / OVERVALUED: Pasar menaruh harapan pertumbuhan yang terlalu agresif (di atas {growth_high}%). Batasi Risiko.")
                         
-                        # Simulasi Uji Stres (Stress Test Range)
                         st.markdown("---")
                         st.markdown("### 🛡️ Uji Stres Tingkat Pertumbuhan (Miskalkulasi Masa Depan)")
                         st.write("Pasar tidak pernah pasti. Berikut adalah perubahan harga wajar jika target pertumbuhan tahap 1 Anda meleset:")
